@@ -1,0 +1,28 @@
+@import url('https://fonts.googleapis.com/css2?family=El+Messiri:wght@400;500;600;700&family=Tajawal:wght@300;400;500;700;800&display=swap');
+@import "tailwindcss";
+
+@theme {
+  --font-sans: "Tajawal", ui-sans-serif, system-ui, sans-serif;
+  --font-display: "El Messiri", serif;
+  --font-serif: "El Messiri", serif;
+  
+  --color-editorial-bg: #F9F7F2;
+  --color-editorial-text: #2C3E2E;
+  --color-editorial-accent: #C18D5D;
+  --color-editorial-muted: #5A5A40;
+  --color-natural-50: #F9F7F2;
+  --color-natural-100: #E8E4DB;
+  --color-natural-200: #C4C0B5;
+}
+
+/* Custom background animations or smooth glows */
+.glass-panel {
+  background: rgba(255, 255, 255, 0.75);
+  backdrop-filter: blur(12px);
+  -webkit-backdrop-filter: blur(12px);
+}
+
+@utility content-visibility-auto {
+  content-visibility: auto;
+  contain-intrinsic-size: 0 400px;
+}
