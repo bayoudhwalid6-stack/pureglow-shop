@@ -155,8 +155,11 @@ export default function Chatbot({ isNightMode = false }: ChatbotProps) {
     try {
       const geminiClient = getGeminiClient();
       
+      // Tronquer l'historique à 5 messages pour rester sous les limites de tokens
+      const recentMessages = [...messages, userMsg].slice(-5);
+      
       // Convertir les messages au format Gemini
-      const geminiMessages: GeminiMessage[] = [...messages, userMsg].map(m => ({
+      const geminiMessages: GeminiMessage[] = recentMessages.map(m => ({
         role: m.role,
         content: m.content
       }));
@@ -176,39 +179,21 @@ export default function Chatbot({ isNightMode = false }: ChatbotProps) {
     } catch (err: any) {
       console.error('Gemini error:', err);
       
-      // Vérifier si c'est une erreur de quota (429)
+      // Vérifier si c'est une erreur de quota (429) ou request too large (413)
       const isQuotaError = err?.message?.includes('429') || 
                           err?.message?.includes('quota') || 
                           err?.message?.includes('Quota') ||
                           err?.status === 429;
       
-      if (isQuotaError) {
-        // Failover vers Groq
-        console.log('Gemini quota exceeded, trying Groq failover...');
-        try {
-          const groqClient = getGroqClient();
-          
-          // Convertir les messages au format Groq
-          const groqMessages: GroqMessage[] = [...messages, userMsg].map(m => ({
-            role: m.role === 'assistant' ? 'assistant' : 'user',
-            content: m.content
-          }));
-
-          const groqResponse = await groqClient.sendMessage(groqMessages);
-          
-          if (groqResponse.success) {
-            setMessages(prev => [...prev, {
-              id: Math.random().toString(),
-              role: 'assistant',
-              content: groqResponse.message,
-              timestamp: new Date()
-            }]);
-          } else {
-            throw new Error(groqResponse.error || "Groq failed");
-          }
-        } catch (groqErr: any) {
-          console.error('Groq failover error:', groqErr);
-          // Les deux ont échoué - message de secours
+      const isRequestTooLarge = err?.message?.includes('413') ||
+                               err?.message?.includes('too large') ||
+                               err?.message?.includes('payload') ||
+                               err?.status === 413;
+      
+      if (isQuotaError || isRequestTooLarge) {
+        // Failover vers Groq (pour quota) ou message de secours (pour request too large)
+        if (isRequestTooLarge) {
+          // Request too large - message de secours immédiat
           const fallbackMessage = "عذراً! أنا في pause technique لبضع لحظات. يمكنكِ الاستمرار في تصفح الموقع، سأعود قريباً جداً! 🌸\n\nDésolé, je suis en pause technique pour quelques instants. Vous pouvez continuer à naviguer sur le site, je serai de retour très bientôt !";
           
           setMessages(prev => [...prev, {
@@ -217,9 +202,48 @@ export default function Chatbot({ isNightMode = false }: ChatbotProps) {
             content: fallbackMessage,
             timestamp: new Date()
           }]);
+        } else {
+          // Quota error - essayer Groq
+          console.log('Gemini quota exceeded, trying Groq failover...');
+          try {
+            const groqClient = getGroqClient();
+            
+            // Tronquer l'historique à 5 messages pour Groq aussi
+            const recentMessages = [...messages, userMsg].slice(-5);
+            
+            // Convertir les messages au format Groq
+            const groqMessages: GroqMessage[] = recentMessages.map(m => ({
+              role: m.role === 'assistant' ? 'assistant' : 'user',
+              content: m.content
+            }));
+
+            const groqResponse = await groqClient.sendMessage(groqMessages);
+            
+            if (groqResponse.success) {
+              setMessages(prev => [...prev, {
+                id: Math.random().toString(),
+                role: 'assistant',
+                content: groqResponse.message,
+                timestamp: new Date()
+              }]);
+            } else {
+              throw new Error(groqResponse.error || "Groq failed");
+            }
+          } catch (groqErr: any) {
+            console.error('Groq failover error:', groqErr);
+            // Les deux ont échoué - message de secours
+            const fallbackMessage = "عذراً! أنا في pause technique لبضع لحظات. يمكنكِ الاستمرار في تصفح الموقع، سأعود قريباً جداً! 🌸\n\nDésolé, je suis en pause technique pour quelques instants. Vous pouvez continuer à naviguer sur le site, je serai de retour très bientôt !";
+            
+            setMessages(prev => [...prev, {
+              id: Math.random().toString(),
+              role: 'assistant',
+              content: fallbackMessage,
+              timestamp: new Date()
+            }]);
+          }
         }
       } else {
-        // Erreur autre que quota - message d'erreur standard
+        // Erreur autre que quota/request too large - message d'erreur standard
         const fallbackMessage = "عذراً! أواجه مشكلة مؤقتة في الاتصال بالذكاء الاصطناعي. يرجى التأكد من إعداد مفتاح GEMINI_API_KEY بشكل صحيح أو المحاولة مجدداً بعد قليل. أنا في خدمتكم دائماً!";
         
         setMessages(prev => [...prev, {
