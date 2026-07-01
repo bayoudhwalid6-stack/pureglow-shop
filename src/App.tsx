@@ -8,7 +8,8 @@ import {
 } from 'lucide-react';
 import { motion, AnimatePresence } from 'motion/react';
 import Chatbot from './components/Chatbot';
-import { Produit, Commande, getProduits, getCommandes, addCommande, updateCommandeStatut } from './lib/supabase';
+import Login from './components/Login';
+import { Produit, Commande, getProduits, getCommandes, addCommande, updateCommandeStatut, supabase } from './lib/supabase';
 
 // Direct asset image imports (none required since we use the public folder now)
 
@@ -501,9 +502,8 @@ export default function App() {
   const [selectedProduct, setSelectedProduct] = useState<Produit | null>(null);
   const [isNightMode, setIsNightMode] = useState<boolean>(false);
   const [newOrdersCount, setNewOrdersCount] = useState<number>(0);
-  const [adminPasscode, setAdminPasscode] = useState<string>('');
   const [isAdminAuthenticated, setIsAdminAuthenticated] = useState<boolean>(false);
-  const [adminPasscodeError, setAdminPasscodeError] = useState<string | null>(null);
+  const [adminSession, setAdminSession] = useState<any>(null);
 
   // Persistent Shopping Cart state (local storage)
   const [cart, setCart] = useState<CartItem[]>(() => {
@@ -794,12 +794,57 @@ ${cartDetails}
     fetchProducts();
     fetchOrders();
     
+    // Vérifier la session Supabase au montage
+    checkAdminSession();
+    
     // Auto-refresh orders silently every 12 seconds to instantly capture new automated chat orders!
     const interval = setInterval(() => {
       fetchOrders(true);
     }, 12000);
     return () => clearInterval(interval);
   }, []);
+
+  // Vérifier la session admin Supabase
+  const checkAdminSession = async () => {
+    if (!supabase) return;
+    
+    try {
+      const { data: { session } } = await supabase.auth.getSession();
+      if (session) {
+        setAdminSession(session);
+        setIsAdminAuthenticated(true);
+      } else {
+        setAdminSession(null);
+        setIsAdminAuthenticated(false);
+      }
+    } catch (error) {
+      console.error('Erreur vérification session:', error);
+      setAdminSession(null);
+      setIsAdminAuthenticated(false);
+    }
+  };
+
+  // Gérer le succès de login
+  const handleLoginSuccess = () => {
+    checkAdminSession();
+  };
+
+  // Déconnexion admin
+  const handleAdminLogout = async () => {
+    if (!supabase) return;
+    
+    try {
+      await supabase.auth.signOut();
+      setAdminSession(null);
+      setIsAdminAuthenticated(false);
+      setAlertMsg({ type: 'success', text: 'تم تسجيل الخروج بنجاح' });
+      setTimeout(() => setAlertMsg(null), 3000);
+    } catch (error) {
+      console.error('Erreur déconnexion:', error);
+      setAlertMsg({ type: 'error', text: 'Erreur lors de la déconnexion' });
+      setTimeout(() => setAlertMsg(null), 3000);
+    }
+  };
 
   // Trigger custom event to open Chatbot with selected product pre-filled
   const handleOrderClick = (productNom: string) => {
@@ -1640,65 +1685,7 @@ ${cartDetails}
         {/* VIEW 3: ADMIN/MERCHANT DASHBOARD */}
         {activeTab === 'admin' && (
           !isAdminAuthenticated ? (
-            <div className="max-w-md mx-auto space-y-6 text-right py-16">
-              <div className="text-center space-y-3">
-                <Lock className="h-10 w-10 text-[#C18D5D] mx-auto animate-pulse" />
-                <h1 className="font-display text-2xl font-extrabold text-[#2C3E2E] dark:text-[#FAF9F5]">
-                  الوصول مقتصر على الإدارة
-                </h1>
-                <p className="text-xs sm:text-sm text-slate-500">
-                  يرجى إدخال رمز المرور السري الخاص بالإدارة لعرض لوحة التحكم وإدارة الطلبيات بنجاح.
-                </p>
-              </div>
-
-              <div className={`${themeBgCard} p-6 rounded-sm border ${themeBorder} shadow-md space-y-4`}>
-                <div className="space-y-1">
-                  <label className="text-xs font-bold text-slate-600 dark:text-slate-400 block mb-1">
-                    رمز المرور السري (Code secret Admin)
-                  </label>
-                  <input
-                    type="password"
-                    value={adminPasscode}
-                    onChange={(e) => {
-                      setAdminPasscode(e.target.value);
-                      setAdminPasscodeError(null);
-                    }}
-                    onKeyDown={(e) => {
-                      if (e.key === 'Enter') {
-                        if (adminPasscode === '1234') {
-                          setIsAdminAuthenticated(true);
-                          setAdminPasscodeError(null);
-                        } else {
-                          setAdminPasscodeError('رمز المرور خاطئ! يرجى المحاولة مرة أخرى.');
-                        }
-                      }
-                    }}
-                    placeholder="أدخل رمز المرور السري (مثال: 1234)"
-                    className="w-full px-4 py-3 text-sm text-center rounded-sm border border-[#2C3E2E]/15 focus:border-[#C18D5D] bg-[#F9F7F2]/30 dark:bg-[#141E15]/30 focus:outline-none focus:ring-0 text-center"
-                  />
-                </div>
-
-                {adminPasscodeError && (
-                  <p className="text-xs text-rose-500 bg-rose-50 dark:bg-rose-950/20 p-2.5 rounded-sm border border-rose-100 dark:border-rose-900/35">
-                    ⚠️ {adminPasscodeError}
-                  </p>
-                )}
-
-                <button
-                  onClick={() => {
-                    if (adminPasscode === '1234') {
-                      setIsAdminAuthenticated(true);
-                      setAdminPasscodeError(null);
-                    } else {
-                      setAdminPasscodeError('رمز المرور خاطئ! يرجى المحاولة مرة أخرى.');
-                    }
-                  }}
-                  className="w-full py-3 bg-[#2C3E2E] hover:bg-[#C18D5D] text-white text-xs sm:text-sm font-bold rounded-sm transition-all duration-300 cursor-pointer"
-                >
-                  تأكيد رمز المرور والولوج
-                </button>
-              </div>
-            </div>
+            <Login onLoginSuccess={handleLoginSuccess} isNightMode={isNightMode} />
           ) : (
             <div className="space-y-8">
               <div className="flex flex-col sm:flex-row justify-between items-start sm:items-center gap-4 text-right">
@@ -1719,10 +1706,7 @@ ${cartDetails}
                 
                 <div className="flex items-center gap-2 w-full sm:w-auto flex-wrap sm:flex-nowrap">
                   <button
-                    onClick={() => {
-                      setIsAdminAuthenticated(false);
-                      setAdminPasscode('');
-                    }}
+                    onClick={handleAdminLogout}
                     className="px-4 py-2.5 bg-rose-600 hover:bg-rose-700 text-white text-xs font-bold rounded-sm transition-all flex items-center gap-1.5 cursor-pointer shadow"
                   >
                     <Unlock className="h-4 w-4" />

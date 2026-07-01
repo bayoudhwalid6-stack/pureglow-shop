@@ -94,11 +94,8 @@ export class SpeechRecognitionService {
         this.callbacks.onError(errorMessage);
       }
 
-      // Auto-rétry pour certaines erreurs
-      if (['no-speech', 'network'].includes(event.error) && this.retryCount < this.maxRetries && this.callbacks) {
-        this.retryCount++;
-        setTimeout(() => this.start(this.callbacks), 500);
-      }
+      // Note: Auto-rétry désactivé sur mobile pour éviter de perdre le contexte du clic utilisateur
+      // Les navigateurs mobiles bloquent l'accès au micro si start() n'est pas synchrone
     };
 
     this.recognition.onstart = () => {

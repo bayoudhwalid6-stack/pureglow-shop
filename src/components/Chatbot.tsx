@@ -22,6 +22,7 @@ export default function Chatbot({ isNightMode = false }: ChatbotProps) {
   const [messages, setMessages] = useState<Message[]>([]);
   const [input, setInput] = useState('');
   const [isLoading, setIsLoading] = useState(false);
+  const [isGenerating, setIsGenerating] = useState(false);
   const [configStatus, setConfigStatus] = useState({ supabase: false, gemini: false });
   const messagesEndRef = useRef<HTMLDivElement>(null);
   
@@ -31,6 +32,7 @@ export default function Chatbot({ isNightMode = false }: ChatbotProps) {
   const [isSpeaking, setIsSpeaking] = useState(false);
   const [interimTranscript, setInterimTranscript] = useState('');
   const [voiceError, setVoiceError] = useState<string | null>(null);
+  const [lastReadMessageId, setLastReadMessageId] = useState<string | null>(null);
   
   // Service instances
   const speechRecognitionRef = useRef<SpeechRecognitionService | null>(null);
@@ -135,6 +137,7 @@ export default function Chatbot({ isNightMode = false }: ChatbotProps) {
 
     setMessages(prev => [...prev, userMsg]);
     setIsLoading(true);
+    setIsGenerating(true);
 
     try {
       const geminiClient = getGeminiClient();
@@ -167,6 +170,7 @@ export default function Chatbot({ isNightMode = false }: ChatbotProps) {
       }]);
     } finally {
       setIsLoading(false);
+      setIsGenerating(false);
     }
   };
 
@@ -192,15 +196,24 @@ export default function Chatbot({ isNightMode = false }: ChatbotProps) {
       return;
     }
 
-    setInterimTranscript('');
-    setVoiceError(null);
+    // Vérification de la disponibilité de l'API avant tout
+    if (!SpeechRecognitionService.isSupported()) {
+      setVoiceError('Reconnaissance vocale non supportée sur ce navigateur');
+      return;
+    }
 
+    // Interruption de la voix en cours si Sarra parle
+    window.speechSynthesis.cancel();
+
+    // Appel SYNCHRONE de start() directement dans le handler de clic
+    // C'est critique pour mobile : les navigateurs mobiles bloquent l'accès au micro
+    // si start() n'est pas appelé de manière synchrone suite à un geste utilisateur
     const success = speechRecognitionRef.current.start({
       onResult: (transcript, isFinal) => {
         if (isFinal) {
           setInput(transcript);
           setInterimTranscript('');
-          // Auto-send after a short delay for natural conversation
+          // Auto-send après un court délai pour une conversation naturelle
           setTimeout(() => handleSend(transcript), 500);
         } else {
           setInterimTranscript(transcript);
@@ -213,6 +226,7 @@ export default function Chatbot({ isNightMode = false }: ChatbotProps) {
       onStart: () => {
         setIsListening(true);
         setVoiceError(null);
+        setInterimTranscript('');
       },
       onEnd: () => {
         setIsListening(false);
@@ -249,13 +263,15 @@ export default function Chatbot({ isNightMode = false }: ChatbotProps) {
 
   // Auto-speak assistant messages when voice is enabled
   useEffect(() => {
-    if (voiceEnabled && !isSpeaking) {
+    if (voiceEnabled && !isSpeaking && messages.length > 0) {
       const lastMessage = messages[messages.length - 1];
-      if (lastMessage?.role === 'assistant') {
+      // Only speak if it's an assistant message and hasn't been read yet
+      if (lastMessage?.role === 'assistant' && lastMessage.id !== lastReadMessageId) {
+        setLastReadMessageId(lastMessage.id);
         speakMessage(lastMessage.content);
       }
     }
-  }, [messages, voiceEnabled, isSpeaking]);
+  }, [messages, voiceEnabled, isSpeaking, lastReadMessageId]);
 
   const quickQuestions = [
     "ما هي منتجاتكم من الصابون والكريمات؟",
@@ -383,13 +399,19 @@ export default function Chatbot({ isNightMode = false }: ChatbotProps) {
                 </div>
               ))}
 
-              {isLoading && (
+              {/* Thinking Indicator - Sarra réfléchit */}
+              {isGenerating && (
                 <div className="flex justify-start" dir="rtl">
                   <div className={`${chatBgWhite} ${chatTextMain} rounded-sm rounded-br-none border ${chatBorderMain} px-4 py-3 shadow-xs`}>
-                    <div className="flex items-center space-x-1.5 space-x-reverse">
-                      <span className="h-2 w-2 animate-bounce rounded-full bg-[#C18D5D]" />
-                      <span className="h-2 w-2 animate-bounce rounded-full bg-[#C18D5D] delay-100" />
-                      <span className="h-2 w-2 animate-bounce rounded-full bg-[#C18D5D] delay-200" />
+                    <div className="flex items-center space-x-2 space-x-reverse">
+                      <div className="flex items-center space-x-1 space-x-reverse">
+                        <span className="h-2 w-2 animate-bounce rounded-full bg-[#C18D5D]" />
+                        <span className="h-2 w-2 animate-bounce rounded-full bg-[#C18D5D] delay-100" />
+                        <span className="h-2 w-2 animate-bounce rounded-full bg-[#C18D5D] delay-200" />
+                      </div>
+                      <span className="text-xs text-[#C18D5D] font-medium animate-pulse">
+                        سارة réfléchit...
+                      </span>
                     </div>
                   </div>
                 </div>
