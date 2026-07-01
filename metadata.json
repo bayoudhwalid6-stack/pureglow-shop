@@ -1,0 +1,6 @@
+{
+  "name": "Pure Glow MH",
+  "description": "متجر بيور غلو MH لمستحضرات التجميل العضوية والصابون الطبيعي التونسي بالمهدية - مع مستشارة التجميل الذكية وتتبع مباشر للشحنات.",
+  "requestFramePermissions": [],
+  "majorCapabilities": ["MAJOR_CAPABILITY_SERVER_SIDE_GEMINI_API"]
+}
