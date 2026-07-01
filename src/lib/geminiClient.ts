@@ -4,7 +4,7 @@
  * Configuration 100% client-side avec Vite environment variables
  */
 
-import { GoogleGenerativeAI } from '@google/genai';
+import { GoogleGenAI } from '@google/genai';
 
 // Configuration de la persona Sarra
 const SARRA_SYSTEM_INSTRUCTION = `
@@ -52,8 +52,7 @@ export interface GeminiResponse {
 }
 
 class GeminiClient {
-  private client: GoogleGenerativeAI | null = null;
-  private model: any = null;
+  private client: GoogleGenAI | null = null;
   private isConfigured: boolean = false;
 
   constructor() {
@@ -70,11 +69,7 @@ class GeminiClient {
     }
 
     try {
-      this.client = new GoogleGenerativeAI(apiKey);
-      this.model = this.client.getGenerativeModel({ 
-        model: 'gemini-1.5-flash',
-        systemInstruction: SARRA_SYSTEM_INSTRUCTION
-      });
+      this.client = new GoogleGenAI({ apiKey });
       this.isConfigured = true;
       console.log('Gemini client initialized successfully');
     } catch (error) {
@@ -87,30 +82,31 @@ class GeminiClient {
    * Envoie un message à Gemini et obtient une réponse
    */
   async sendMessage(messages: GeminiMessage[]): Promise<GeminiResponse> {
-    if (!this.isConfigured || !this.model) {
+    if (!this.isConfigured || !this.client) {
       return {
         success: false,
+        message: '',
         error: 'Gemini non configuré. Veuillez définir VITE_GEMINI_API_KEY.'
       };
     }
 
     try {
       // Convertir les messages au format attendu par Gemini
-      const chatHistory = messages.slice(0, -1).map(msg => ({
+      const contents = messages.map(msg => ({
         role: msg.role === 'assistant' ? 'model' : 'user',
         parts: [{ text: msg.content }]
       }));
 
-      const lastMessage = messages[messages.length - 1].content;
-
-      // Démarrer une session de chat avec l'historique
-      const chat = this.model.startChat({
-        history: chatHistory
+      // Utiliser la nouvelle API generateContent
+      const result = await this.client.models.generateContent({
+        model: 'gemini-2.5-flash',
+        contents: contents,
+        config: {
+          systemInstruction: SARRA_SYSTEM_INSTRUCTION
+        }
       });
 
-      const result = await chat.sendMessage(lastMessage);
-      const response = result.response;
-      const text = response.text();
+      const text = result.text;
 
       return {
         success: true,
@@ -123,6 +119,7 @@ class GeminiClient {
       if (error.status === 401) {
         return {
           success: false,
+          message: '',
           error: 'Clé API Gemini invalide.'
         };
       }
@@ -130,12 +127,14 @@ class GeminiClient {
       if (error.status === 429) {
         return {
           success: false,
+          message: '',
           error: 'Limite de quota Gemini dépassée. Réessayez plus tard.'
         };
       }
 
       return {
         success: false,
+        message: '',
         error: error.message || 'Erreur lors de la communication avec Gemini.'
       };
     }
@@ -153,7 +152,6 @@ class GeminiClient {
    */
   destroy(): void {
     this.client = null;
-    this.model = null;
     this.isConfigured = false;
   }
 }
