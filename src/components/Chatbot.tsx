@@ -4,6 +4,7 @@ import { motion, AnimatePresence } from 'motion/react';
 import { getSpeechRecognition, SpeechRecognitionService } from '../lib/speechRecognition';
 import { getSpeechSynthesis, SpeechSynthesisService } from '../lib/speechSynthesis';
 import { getGeminiClient, GeminiMessage } from '../lib/geminiClient';
+import { getGroqClient, GroqMessage } from '../lib/groqClient';
 import { isSupabaseConfigured } from '../lib/supabase';
 
 interface Message {
@@ -173,24 +174,61 @@ export default function Chatbot({ isNightMode = false }: ChatbotProps) {
         throw new Error(response.error || "Erreur lors de la réponse");
       }
     } catch (err: any) {
-      console.error(err);
+      console.error('Gemini error:', err);
       
-      // Message de secours pour erreur 429 (Quota épuisé)
+      // Vérifier si c'est une erreur de quota (429)
       const isQuotaError = err?.message?.includes('429') || 
                           err?.message?.includes('quota') || 
                           err?.message?.includes('Quota') ||
                           err?.status === 429;
       
-      const fallbackMessage = isQuotaError
-        ? "عذراً! أنا في pause technique لبضع لحظات. يمكنكِ الاستمرار في تصفح الموقع، سأعود قريباً جداً! 🌸\n\nDésolé, je suis en pause technique pour quelques instants. Vous pouvez continuer à naviguer sur le site, je serai de retour très bientôt !"
-        : "عذراً! أواجه مشكلة مؤقتة في الاتصال بالذكاء الاصطناعي. يرجى التأكد من إعداد مفتاح GEMINI_API_KEY بشكل صحيح أو المحاولة مجدداً بعد قليل. أنا في خدمتكم دائماً!";
-      
-      setMessages(prev => [...prev, {
-        id: Math.random().toString(),
-        role: 'assistant',
-        content: fallbackMessage,
-        timestamp: new Date()
-      }]);
+      if (isQuotaError) {
+        // Failover vers Groq
+        console.log('Gemini quota exceeded, trying Groq failover...');
+        try {
+          const groqClient = getGroqClient();
+          
+          // Convertir les messages au format Groq
+          const groqMessages: GroqMessage[] = [...messages, userMsg].map(m => ({
+            role: m.role === 'assistant' ? 'assistant' : 'user',
+            content: m.content
+          }));
+
+          const groqResponse = await groqClient.sendMessage(groqMessages);
+          
+          if (groqResponse.success) {
+            setMessages(prev => [...prev, {
+              id: Math.random().toString(),
+              role: 'assistant',
+              content: groqResponse.message,
+              timestamp: new Date()
+            }]);
+          } else {
+            throw new Error(groqResponse.error || "Groq failed");
+          }
+        } catch (groqErr: any) {
+          console.error('Groq failover error:', groqErr);
+          // Les deux ont échoué - message de secours
+          const fallbackMessage = "عذراً! أنا في pause technique لبضع لحظات. يمكنكِ الاستمرار في تصفح الموقع، سأعود قريباً جداً! 🌸\n\nDésolé, je suis en pause technique pour quelques instants. Vous pouvez continuer à naviguer sur le site, je serai de retour très bientôt !";
+          
+          setMessages(prev => [...prev, {
+            id: Math.random().toString(),
+            role: 'assistant',
+            content: fallbackMessage,
+            timestamp: new Date()
+          }]);
+        }
+      } else {
+        // Erreur autre que quota - message d'erreur standard
+        const fallbackMessage = "عذراً! أواجه مشكلة مؤقتة في الاتصال بالذكاء الاصطناعي. يرجى التأكد من إعداد مفتاح GEMINI_API_KEY بشكل صحيح أو المحاولة مجدداً بعد قليل. أنا في خدمتكم دائماً!";
+        
+        setMessages(prev => [...prev, {
+          id: Math.random().toString(),
+          role: 'assistant',
+          content: fallbackMessage,
+          timestamp: new Date()
+        }]);
+      }
     } finally {
       setIsLoading(false);
       setIsGenerating(false);
