@@ -91,22 +91,80 @@ export class SpeechSynthesisService {
   }
 
   /**
+   * Détecte la langue du texte (arabe ou français)
+   */
+  private detectLanguage(text: string): 'arabic' | 'french' | 'default' {
+    // Détecter les caractères arabes (plage Unicode U+0600 à U+06FF)
+    const arabicPattern = /[\u0600-\u06FF\u0750-\u077F\u08A0-\u08FF]/;
+    if (arabicPattern.test(text)) {
+      return 'arabic';
+    }
+    
+    // Détecter les caractères français/latins avec accents
+    const frenchPattern = /[àâäéèêëïîôùûüÿç]/i;
+    if (frenchPattern.test(text) || /[a-zA-Z]/.test(text)) {
+      return 'french';
+    }
+    
+    return 'default';
+  }
+
+  /**
+   * Sélectionne la voix appropriée selon la langue détectée
+   */
+  private selectVoiceForLanguage(language: 'arabic' | 'french' | 'default'): SpeechSynthesisVoice | null {
+    if (language === 'arabic') {
+      // Priorité: ar-TN, ar-AE, ar-SA, puis toute voix arabe
+      const tunisianVoice = this.voices.find(v => v.lang === 'ar-TN');
+      const emiratesVoice = this.voices.find(v => v.lang === 'ar-AE');
+      const saudiVoice = this.voices.find(v => v.lang === 'ar-SA');
+      const anyArabicVoice = this.voices.find(v => v.lang.startsWith('ar'));
+      
+      return tunisianVoice || emiratesVoice || saudiVoice || anyArabicVoice || null;
+    }
+    
+    if (language === 'french') {
+      // Priorité: fr-FR, fr-CA, puis toute voix française
+      const frenchVoice = this.voices.find(v => v.lang === 'fr-FR');
+      const canadianVoice = this.voices.find(v => v.lang === 'fr-CA');
+      const anyFrenchVoice = this.voices.find(v => v.lang.startsWith('fr'));
+      
+      return frenchVoice || canadianVoice || anyFrenchVoice || null;
+    }
+    
+    // Fallback: première voix disponible
+    return this.voices[0] || null;
+  }
+
+  /**
    * Configure l'utterance avec les paramètres optimaux
    */
   private configureUtterance(text: string): SpeechSynthesisUtterance {
     const cleanedText = this.cleanTextForSpeech(text);
     const utterance = new SpeechSynthesisUtterance(cleanedText);
 
+    // Détecter la langue du texte
+    const detectedLanguage = this.detectLanguage(cleanedText);
+    
+    // Sélectionner la voix appropriée
+    const selectedVoice = this.selectVoiceForLanguage(detectedLanguage);
+    
     // Configuration de la voix
-    if (this.selectedVoice) {
-      utterance.voice = this.selectedVoice;
+    if (selectedVoice) {
+      utterance.voice = selectedVoice;
     }
 
-    // Configuration de la langue (arabe tunisien ou français)
-    utterance.lang = this.selectedVoice?.lang || 'ar-TN';
+    // Configuration de la langue selon la détection
+    if (detectedLanguage === 'arabic') {
+      utterance.lang = selectedVoice?.lang || 'ar-TN';
+    } else if (detectedLanguage === 'french') {
+      utterance.lang = selectedVoice?.lang || 'fr-FR';
+    } else {
+      utterance.lang = selectedVoice?.lang || 'ar-TN';
+    }
 
     // Paramètres de parole optimisés pour une conversation naturelle
-    utterance.rate = 0.9;        // Vitesse légèrement réduite pour clarté
+    utterance.rate = 0.95;       // Vitesse légèrement réduite pour clarté (0.9-1.0)
     utterance.pitch = 1.0;       // Pitch normal
     utterance.volume = 1.0;      // Volume maximum
 

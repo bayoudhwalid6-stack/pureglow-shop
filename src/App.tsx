@@ -9,6 +9,7 @@ import {
 import { motion, AnimatePresence } from 'motion/react';
 import Chatbot from './components/Chatbot';
 import Login from './components/Login';
+import InAppBrowserBanner from './components/InAppBrowserBanner';
 import { Produit, Commande, getProduits, getCommandes, addCommande, updateCommandeStatut, supabase } from './lib/supabase';
 
 // Direct asset image imports (none required since we use the public folder now)
@@ -902,6 +903,9 @@ ${cartDetails}
       className={`min-h-screen ${themeBgMain} ${themeTextMain} font-sans transition-colors duration-500 overflow-x-hidden w-full`} 
       dir="rtl"
     >
+      {/* In-App Browser Banner */}
+      <InAppBrowserBanner isNightMode={isNightMode} />
+
       {/* Top Notification Banner */}
       <div className="bg-[#2C3E2E] text-[#F9F7F2] py-2 px-4 text-center text-xs tracking-wider border-b border-[#C18D5D]/20">
         <div className="max-w-7xl mx-auto flex items-center justify-center gap-2">
