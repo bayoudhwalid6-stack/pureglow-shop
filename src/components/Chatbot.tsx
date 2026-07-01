@@ -37,6 +37,7 @@ export default function Chatbot({ isNightMode = false }: ChatbotProps) {
   // Service instances
   const speechRecognitionRef = useRef<SpeechRecognitionService | null>(null);
   const speechSynthesisRef = useRef<SpeechSynthesisService | null>(null);
+  const lastSendTimeRef = useRef<number>(0);
 
   // Initialize voice services
   useEffect(() => {
@@ -126,7 +127,18 @@ export default function Chatbot({ isNightMode = false }: ChatbotProps) {
     const messageContent = textToSend || input;
     if (!messageContent.trim() || isLoading) return;
 
+    // Debouncing: attendre 1 seconde entre les envois pour éviter la surconsommation de quota
+    const now = Date.now();
+    const timeSinceLastSend = now - lastSendTimeRef.current;
+    const debounceDelay = 1000; // 1 seconde
+
+    if (timeSinceLastSend < debounceDelay) {
+      const remainingTime = debounceDelay - timeSinceLastSend;
+      await new Promise(resolve => setTimeout(resolve, remainingTime));
+    }
+
     if (!textToSend) setInput('');
+    lastSendTimeRef.current = Date.now();
 
     const userMsg: Message = {
       id: Math.random().toString(),
@@ -162,10 +174,21 @@ export default function Chatbot({ isNightMode = false }: ChatbotProps) {
       }
     } catch (err: any) {
       console.error(err);
+      
+      // Message de secours pour erreur 429 (Quota épuisé)
+      const isQuotaError = err?.message?.includes('429') || 
+                          err?.message?.includes('quota') || 
+                          err?.message?.includes('Quota') ||
+                          err?.status === 429;
+      
+      const fallbackMessage = isQuotaError
+        ? "عذراً! أنا في pause technique لبضع لحظات. يمكنكِ الاستمرار في تصفح الموقع، سأعود قريباً جداً! 🌸\n\nDésolé, je suis en pause technique pour quelques instants. Vous pouvez continuer à naviguer sur le site, je serai de retour très bientôt !"
+        : "عذراً! أواجه مشكلة مؤقتة في الاتصال بالذكاء الاصطناعي. يرجى التأكد من إعداد مفتاح GEMINI_API_KEY بشكل صحيح أو المحاولة مجدداً بعد قليل. أنا في خدمتكم دائماً!";
+      
       setMessages(prev => [...prev, {
         id: Math.random().toString(),
         role: 'assistant',
-        content: "عذراً! أواجه مشكلة مؤقتة في الاتصال بالذكاء الاصطناعي. يرجى التأكد من إعداد مفتاح GEMINI_API_KEY بشكل صحيح أو المحاولة مجدداً بعد قليل. أنا في خدمتكم دائماً!",
+        content: fallbackMessage,
         timestamp: new Date()
       }]);
     } finally {
