@@ -85,7 +85,7 @@ class GeminiClient {
   /**
    * Envoie un message à Gemini et obtient une réponse
    */
-  async sendMessage(messages: GeminiMessage[]): Promise<GeminiResponse> {
+  async sendMessage(messages: GeminiMessage[], productCatalog?: string): Promise<GeminiResponse> {
     if (!this.isConfigured || !this.client) {
       return {
         success: false,
@@ -95,6 +95,13 @@ class GeminiClient {
     }
 
     try {
+      // Construire le system instruction avec le catalogue si fourni
+      let systemInstruction = SARRA_SYSTEM_INSTRUCTION;
+      
+      if (productCatalog) {
+        systemInstruction = `${SARRA_SYSTEM_INSTRUCTION}\n\nVoici notre catalogue produit à utiliser impérativement :\n${productCatalog}\n\nNE RÉPONS RIEN sur un produit si ce n'est pas dans le catalogue fourni ci-dessus. Si tu ne trouves pas, dis en derja : 'سامحني، المعلومة هذي مش موجودة عندي، تحب نشوفلك حاجة أخرى؟'.`;
+      }
+      
       // Convertir les messages au format attendu par Gemini
       const contents = messages.map(msg => ({
         role: msg.role === 'assistant' ? 'model' : 'user',
@@ -106,7 +113,7 @@ class GeminiClient {
         model: 'gemini-2.5-flash',
         contents: contents,
         config: {
-          systemInstruction: SARRA_SYSTEM_INSTRUCTION
+          systemInstruction: systemInstruction
         }
       });
 

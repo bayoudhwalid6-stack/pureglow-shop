@@ -5,7 +5,7 @@ import { getSpeechRecognition, SpeechRecognitionService } from '../lib/speechRec
 import { getSpeechSynthesis, SpeechSynthesisService } from '../lib/speechSynthesis';
 import { getGeminiClient, GeminiMessage } from '../lib/geminiClient';
 import { getGroqClient, GroqMessage } from '../lib/groqClient';
-import { isSupabaseConfigured } from '../lib/supabase';
+import { isSupabaseConfigured, getProduits } from '../lib/supabase';
 
 interface Message {
   id: string;
@@ -155,6 +155,14 @@ export default function Chatbot({ isNightMode = false }: ChatbotProps) {
     try {
       const geminiClient = getGeminiClient();
       
+      // Récupérer les produits depuis Supabase
+      const produits = await getProduits();
+      
+      // Formater le catalogue pour l'IA
+      const productCatalog = produits.map(p => 
+        `- ${p.nom}: ${p.prix} DT - ${p.description}`
+      ).join('\n');
+      
       // Tronquer l'historique à 5 messages pour rester sous les limites de tokens
       const recentMessages = [...messages, userMsg].slice(-5);
       
@@ -164,7 +172,7 @@ export default function Chatbot({ isNightMode = false }: ChatbotProps) {
         content: m.content
       }));
 
-      const response = await geminiClient.sendMessage(geminiMessages);
+      const response = await geminiClient.sendMessage(geminiMessages, productCatalog);
       
       if (response.success) {
         setMessages(prev => [...prev, {
@@ -208,6 +216,14 @@ export default function Chatbot({ isNightMode = false }: ChatbotProps) {
           try {
             const groqClient = getGroqClient();
             
+            // Récupérer les produits depuis Supabase pour Groq aussi
+            const produits = await getProduits();
+            
+            // Formater le catalogue pour l'IA
+            const productCatalog = produits.map(p => 
+              `- ${p.nom}: ${p.prix} DT - ${p.description}`
+            ).join('\n');
+            
             // Tronquer l'historique à 5 messages pour Groq aussi
             const recentMessages = [...messages, userMsg].slice(-5);
             
@@ -217,7 +233,7 @@ export default function Chatbot({ isNightMode = false }: ChatbotProps) {
               content: m.content
             }));
 
-            const groqResponse = await groqClient.sendMessage(groqMessages);
+            const groqResponse = await groqClient.sendMessage(groqMessages, productCatalog);
             
             if (groqResponse.success) {
               setMessages(prev => [...prev, {

@@ -44,7 +44,7 @@ export class GroqClient {
   /**
    * Envoie un message à l'API Groq
    */
-  async sendMessage(messages: GroqMessage[]): Promise<GroqResponse> {
+  async sendMessage(messages: GroqMessage[], productCatalog?: string): Promise<GroqResponse> {
     if (!this.isConfigured) {
       return {
         success: false,
@@ -54,11 +54,22 @@ export class GroqClient {
     }
 
     try {
-      // Préparer les messages avec l'instruction système
+      // Construire le system instruction avec le catalogue si fourni
+      let systemInstruction = 'Tu es Sarra, l\'assistante tunisienne de Pure Glow MH. TA RÈGLE ABSOLUE : Réponds UNIQUEMENT en arabe tunisien (derja). JAMAIS de français.';
+      
+      if (productCatalog) {
+        systemInstruction += `\n\nVoici notre catalogue produit à utiliser impérativement :\n${productCatalog}\n\nNE RÉPONS RIEN sur un produit si ce n'est pas dans le catalogue fourni ci-dessus. Si tu ne trouves pas, dis en derja : 'سامحني، المعلومة هذي مش موجودة عندي، تحب نشوفلك حاجة أخرى؟'.`;
+      }
+      
+      // Préparer les messages avec l'instruction système et message de forçage
       const apiMessages: GroqMessage[] = [
         {
           role: 'system',
-          content: SARRA_SYSTEM_INSTRUCTION
+          content: systemInstruction
+        },
+        {
+          role: 'user',
+          content: 'Réponds uniquement en arabe tunisien (derja) à la question suivante.'
         },
         ...messages.map(msg => ({
           role: (msg.role === 'assistant' ? 'assistant' : 'user') as 'user' | 'assistant',
