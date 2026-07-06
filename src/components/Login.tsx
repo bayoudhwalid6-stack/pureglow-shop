@@ -100,7 +100,7 @@ const Login: React.FC<LoginProps> = ({ onLoginSuccess, isNightMode }) => {
                   type="email"
                   value={email}
                   onChange={(e) => setEmail(e.target.value)}
-                  placeholder="admin@pureglow.tn"
+                  placeholder="samisami231182@gmail.com"
                   required
                   className="w-full pr-10 pl-4 py-3 text-sm rounded-lg border border-[#2C3E2E]/15 focus:border-[#C18D5D] bg-[#F9F7F2]/30 dark:bg-[#141E15]/30 focus:outline-none focus:ring-0 text-right"
                   dir="rtl"
