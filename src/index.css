@@ -1,37 +1,28 @@
-@import url('https://fonts.googleapis.com/css2?family=El+Messiri:wght@400;500;600;700&family=Tajawal:wght@300;400;500;700;800&family=Libre+Baskerville:ital,wght@0,400;0,700;1,400&family=Inter:wght@300;400;500;600;700&display=swap');
+@import url('https://fonts.googleapis.com/css2?family=El+Messiri:wght@400;500;600;700&family=Tajawal:wght@300;400;500;700;800&display=swap');
 @import "tailwindcss";
 
 @theme {
-  --font-serif: "El Messiri", "Libre Baskerville", "Georgia", serif;
-  --font-sans: "Tajawal", "Inter", "Helvetica Neue", sans-serif;
-  --font-mono: "Space Grotesk", monospace;
-
-  --color-brand-primary: #8B9D83; /* Sage Green */
-  --color-brand-primary-hover: #718269; /* Slightly deeper sage */
-  --color-brand-dark: #3D3D3D; /* Slate-Charcoal Muted Dark */
-  --color-brand-accent: #5A5A40; /* Olive Accent / Warm Golden Sage */
-  --color-brand-cream: #FAF9F6; /* Organic Cream Canvas */
-  --color-brand-border-warm: #EAE7E2; /* Natural warm borders */
+  --font-sans: "Tajawal", ui-sans-serif, system-ui, sans-serif;
+  --font-display: "El Messiri", serif;
+  --font-serif: "El Messiri", serif;
+  
+  --color-editorial-bg: #F9F7F2;
+  --color-editorial-text: #2C3E2E;
+  --color-editorial-accent: #C18D5D;
+  --color-editorial-muted: #5A5A40;
+  --color-natural-50: #F9F7F2;
+  --color-natural-100: #E8E4DB;
+  --color-natural-200: #C4C0B5;
 }
 
-/* Custom smooth scrollbar for boutique experience */
-::-webkit-scrollbar {
-  width: 6px;
-  height: 6px;
-}
-::-webkit-scrollbar-track {
-  background: #FAF9F6;
-}
-::-webkit-scrollbar-thumb {
-  background: #8B9D83;
-  border-radius: 3px;
-}
-::-webkit-scrollbar-thumb:hover {
-  background: #5A5A40;
+/* Custom background animations or smooth glows */
+.glass-panel {
+  background: rgba(255, 255, 255, 0.75);
+  backdrop-filter: blur(12px);
+  -webkit-backdrop-filter: blur(12px);
 }
 
-/* Natural soft shadow defined in Design */
-.soft-shadow {
-  box-shadow: 0 4px 30px rgba(0, 0, 0, 0.03);
+@utility content-visibility-auto {
+  content-visibility: auto;
+  contain-intrinsic-size: 0 400px;
 }
-

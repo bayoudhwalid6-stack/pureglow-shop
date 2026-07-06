@@ -1,227 +1,240 @@
-import { useState, useEffect, ReactNode, useRef, HTMLAttributeReferrerPolicy, FormEvent } from 'react';
+import { useState, useEffect, ReactNode, useRef, HTMLAttributeReferrerPolicy } from 'react';
 import { 
   Sparkles, Leaf, ShieldCheck, Truck, ShoppingBag, 
-  ChevronRight, Phone, MapPin, RefreshCw, Gift, Star, 
-  HelpCircle, ClipboardList, TrendingUp, Award, Plus, Minus, X, Eye,
-  MessageSquare, Search, Clock, Calendar, User, Sun, Moon, LogOut, Lock
+  Phone, MapPin, RefreshCw, Gift, Star, 
+  HelpCircle, ClipboardList, TrendingUp, Award, X, Eye,
+  MessageSquare, Search, Clock, Calendar, User, Sun, Moon,
+  Lock, Unlock, Trash2, Plus, Minus
 } from 'lucide-react';
 import { motion, AnimatePresence } from 'motion/react';
-import Chatbot from './components/ChatBot';
-import { Produit, Commande } from './lib/supabase';
+import Chatbot from './components/Chatbot';
+import Login from './components/Login';
+import InAppBrowserBanner from './components/InAppBrowserBanner';
+import { Produit, Commande, getProduits, getCommandes, addCommande, updateCommandeStatut, supabase } from './lib/supabase';
 
-import imageTraiterSidre from "./assets/images/image_traiter_sidre_1782546555922.jpg";
+// Direct asset image imports (none required since we use the public folder now)
 
-// Map old Arabic filenames to new kebab-case asset names
-const localImageMap: Record<string, string> = {
-  "/عرق السوس 100غ ب15د.jpeg": "/licorice-soap-100g-15dt.jpeg",
-  "./عرق السوس 100غ ب15د.jpeg": "/licorice-soap-100g-15dt.jpeg",
-  "عرق السوس 100غ ب15د.jpeg": "/licorice-soap-100g-15dt.jpeg",
-  "/لوبان الذكر 150غ ب18.jpeg": "/louban-soap-150g-18dt.jpeg",
-  "./لوبان الذكر 150غ ب18.jpeg": "/louban-soap-150g-18dt.jpeg",
-  "لوبان الذكر 150غ ب18.jpeg": "/louban-soap-150g-18dt.jpeg",
-  "/هذا واللوبان الذكر ب15د.jpeg": "/licorice-louban-soap-15dt.jpeg",
-  "./هذا واللوبان الذكر ب15د.jpeg": "/licorice-louban-soap-15dt.jpeg",
-  "هذا واللوبان الذكر ب15د.jpeg": "/licorice-louban-soap-15dt.jpeg",
-  "/شوفان والعسل ب12.jpeg": "/oatmeal-honey-soap-12dt.jpeg",
-  "./شوفان والعسل ب12.jpeg": "/oatmeal-honey-soap-12dt.jpeg",
-  "شوفان والعسل ب12.jpeg": "/oatmeal-honey-soap-12dt.jpeg",
-  "/عرق السوس والحبة السوداء ب15.jpeg": "/licorice-nigella-soap-15dt.jpeg",
-  "./عرق السوس والحبة السوداء ب15.jpeg": "/licorice-nigella-soap-15dt.jpeg",
-  "عرق السوس والحبة السوداء ب15.jpeg": "/licorice-nigella-soap-15dt.jpeg",
-  "/قهوة ونشاء وكركم ب15د.jpeg": "/coffee-starch-turmeric-soap-15dt.jpeg",
-  "./قهوة ونشاء وكركم ب15د.jpeg": "/coffee-starch-turmeric-soap-15dt.jpeg",
-  "قهوة ونشاء وكركم ب15د.jpeg": "/coffee-starch-turmeric-soap-15dt.jpeg",
-  "/السدر ب15.jpeg": "/sidr-soap-15dt.jpeg",
-  "./السدر ب15.jpeg": "/sidr-soap-15dt.jpeg",
-  "السدر ب15.jpeg": "/sidr-soap-15dt.jpeg"
-};
-
-// High-fidelity editorial details for each Tunisian botanical product
-const productDetailsMap: Record<string, { ingredients: string[]; conseils: string; bienfaits: string; certification: string }> = {
-  "Savon à la Réglisse": {
-    ingredients: [
-      "Extrait pur de racine de réglisse (Glabridine)",
-      "Poudre de riz extra-fine",
-      "Huile d'olive extra-vierge saponifiée à froid",
-      "Huile d'amande douce vierge",
-      "Beurre de karité brut"
-    ],
-    conseils: "Appliquer quotidiennement matin et soir sur visage humide. Laisser poser la mousse crémeuse 1 minute avant de rincer à l'eau tiède pour un effet éclaircissant optimal.",
-    bienfaits: "Cible et estompe les taches d'hyperpigmentation, illumine le teint terne, lisse le grain de peau pour un fini soyeux.",
-    certification: "100% Naturel - Saponifié à froid - Poids : 100g"
+export const staticProducts: Produit[] = [
+  {
+    id: 1,
+    nom: 'صابون السدر الطبيعي الممتاز',
+    description: 'صابون طبيعي ممتاز بخلاصة السدر الجبلي المطهر وزيت الزيتون البكر، ينقي البشرة بعمق، يكافح البثور، ويمنحها نضارة ونعومة فائقة.',
+    prix: 15.000,
+    image_url: '/صابون السدر  15الطبيعي الممتاز.jpg'
   },
-  "Savon au Louban Dakar 150g": {
-    ingredients: [
-      "Résine pure de Louban Dakar (Oliban mâle)",
-      "Huile d'olive extra-vierge saponifiée à froid",
-      "Huile d'argan biologique pressée à froid",
-      "Huile de coco brute",
-      "Huile de ricin adoucissante"
-    ],
-    conseils: "Faire mousser délicatement sur le visage ou le corps humide. Effectuer de légers mouvements circulaires pour stimuler l'effet anti-âge et raffermissant. Rincer abondamment à l'eau claire.",
-    bienfaits: "Régénérant cellulaire puissant, stimule la production de collagène, estompe les imperfections et raffermit l'épiderme fatigué.",
-    certification: "100% Naturel - Saponifié à froid - Poids : 150g"
+  {
+    id: 2,
+    nom: 'صابون الشوفان والعسل المغذي',
+    description: 'تركيبة طبيعية فاخرة تجمع بين دقيق الشوفان الملطف والعسل الجبلي المغذي مع زيت جوز الهند، مثالي لترطيب البشرة الجافة وتهدئة الحساسية.',
+    prix: 15.000,
+    image_url: '/صابون الشوفان والعسل المغذي.jpg'
   },
-  "Savon Duo Réglisse & Louban": {
-    ingredients: [
-      "Extrait de racine de réglisse pure",
-      "Résine de Louban Dakar infusée",
-      "Huile d'olive extra-vierge saponifiée à froid",
-      "Huile d'amande douce",
-      "Beurre de karité"
-    ],
-    conseils: "Appliquer matin ou soir sur visage humide en effectuant de doux mouvements circulaires. Laisser poser 30 secondes, puis rincer à l'eau claire.",
-    bienfaits: "Double action anti-taches et raffermissante. Unifie le teint tout en retendant l'ovale du visage.",
-    certification: "100% Naturel - Saponifié à froid - Poids : 100g"
+  {
+    id: 3,
+    nom: 'صابون القهوة والنشاء والكركم للتقشير',
+    description: 'مزيج رائع من حبيبات القهوة المنشطة، النشاء المنعم، والكركم المفتح للبشرة. يقشر خلايا الجلد الميتة بلطف ويوحد لون البشرة لمنحها إشراقاً طبيعياً.',
+    prix: 15.000,
+    image_url: '/صابون القهوة والنشاء والكركم للتقشير.jpg'
   },
-  "Savon Flocons d'Avoine & Miel": {
-    ingredients: [
-      "Miel sauvage tunisien pur",
-      "Flocons d'avoine biologique finement moulus",
-      "Huile d'olive extra-vierge saponifiée à froid",
-      "Huile de coco brute",
-      "Huile d'amande douce apaisante"
-    ],
-    conseils: "Utiliser au quotidien pour la toilette du visage et du corps. Masser doucement pour bénéficier de l'action calmante et nutritive du miel et de l'avoine.",
-    bienfaits: "Calme les irritations, hydrate intensément, nourrit les peaux les plus sensibles et laisse la peau extrêmement douce.",
-    certification: "100% Naturel - Saponifié à froid - Poids : 100g"
+  {
+    id: 4,
+    nom: 'صابون زيت الزيتون وجوز الهند واللوز وفيتامين E',
+    description: 'صابون طبيعي غني بزيت الزيتون البكر، زيت جوز الهند النقي، وزيت اللوز الحلو المغذي، معزز بفيتامين E لحماية البشرة وترطيبها بعمق.',
+    prix: 15.000,
+    image_url: '/صابون زيت الزيتون وجوز الهند واللوز وفيتامين E.jpg'
   },
-  "Savon Réglisse & Graine Noire / Nigelle": {
-    ingredients: [
-      "Extrait pur de racine de réglisse",
-      "Huile de nigelle de première pression (Habba Sawda)",
-      "Huile d'olive extra-vierge saponifiée à froid",
-      "Argile verte purifiante",
-      "Huile essentielle de tea tree"
-    ],
-    conseils: "Faire mousser sur visage humide en insistant sur la zone T (front, nez, menton) sujette aux imperfections. Rincer à l'eau fraîche.",
-    bienfaits: "Purifie, combat l'excès de sébum et les imperfections tout en estompant les cicatrices et taches résiduelles.",
-    certification: "100% Naturel - Saponifié à froid - Poids : 100g"
+  {
+    id: 5,
+    nom: 'صابون زيت الزيتون وجوز الهند واللوز وفيتامين E d',
+    description: 'إصدار خاص وغني جداً بمزيج زيت الزيتون المغذي وزيت اللوز المنعم، مع رغوة غنية من زيت جوز الهند وفيتامين E لحماية خلايا البشرة وتجديدها.',
+    prix: 15.000,
+    image_url: '/صابون زيت الزيتون وجوز الهند واللوز وفيتامين E d.jpg'
   },
-  "Savon Café, Amidon & Curcuma": {
-    ingredients: [
-      "Marc de café de haute qualité",
-      "Amidon de maïs (amidon lissant)",
-      "Extrait de curcuma illuminateur",
-      "Huile d'olive extra-vierge saponifiée à froid",
-      "Beurre de karité"
-    ],
-    conseils: "Utiliser 2 à 3 fois par semaine comme exfoliant corporel et visage sous la douche. Masser par mouvements circulaires doux puis rincer.",
-    bienfaits: "Raffermit le grain de peau, estompe la cellulite, apporte un coup d'éclat immédiat et nettoie en profondeur.",
-    certification: "100% Naturel - Saponifié à froid - Poids : 100g"
+  {
+    id: 6,
+    nom: 'صابون طبيعي على البارد بزيت الزيتون واللوز رقم 1',
+    description: 'صابون مصنوع يدوياً على البارد للحفاظ على جودة الزيوت الطبيعية (زيت زيتون، لوز حلو، وجوز هند) مع فيتامين E، لطيف جداً ومناسب للبشرة الحساسة.',
+    prix: 15.000,
+    image_url: '/صابون طبيعي على البارد بزيت الزيتون و زيت جوز الهند و زيت اللوز وڨيتامين E 1  c.jpg'
   },
-  "Savon au Sidr / Jujubier": {
-    ingredients: [
-      "Poudre de feuilles de Sidr (Jujubier)",
-      "Huile d'olive extra-vierge saponifiée à froid",
-      "Huile de coco",
-      "Huile de amande douce",
-      "Argile blanche (Kaolin)"
-    ],
-    conseils: "Idéal pour laver les peaux sensibles ou sujettes aux irritations, démangeaisons ou acné. Faire mousser sur la peau, laisser poser quelques secondes, puis rincer.",
-    bienfaits: "Calme les irritations cutanées, désinfecte en douceur, régule le sébum et préserve la fraîcheur de l'épiderme.",
-    certification: "100% Naturel - Saponifié à froid - Poids : 100g"
+  {
+    id: 7,
+    nom: 'صابون طبيعي على البارد بزيت الزيتون واللوز رقم 3',
+    description: 'صابون بلدي فاخر مصنوع على البارد لترطيب فائق وتغذية تدوم طويلاً بمستخلص زيت اللوز وزيت الزيتون البكر، غني بمضادات الأكسدة وفيتامين E.',
+    prix: 15.000,
+    image_url: '/صابون طبيعي على البارد بزيت الزيتون و زيت جوز الهند و زيت اللوز وڨيتامين E 3.jpg'
+  },
+  {
+    id: 8,
+    nom: 'صابون طبيعي على البارد بزيت الزيتون واللوز رقم 5',
+    description: 'تركيبة نقية بالكامل مصنوعة على البارد تجمع زيت الزيتون التونسي الفاخر وزيت جوز الهند العضوي مع فيتامين E الطبيعي، لترطيب وتطهير يومي آمن.',
+    prix: 15.000,
+    image_url: '/صابون طبيعي على البارد بزيت الزيتون و زيت جوز الهند و زيت اللوز وڨيتامين E 5.jpg'
+  },
+  {
+    id: 9,
+    nom: 'صابون عرق السوس والحبة السوداء',
+    description: 'تركيبة علاجية فريدة تدمج مستخلص عرق السوس المفتح للبقع الداكنة وحبيبات الحبة السوداء المطهرة، تمنح البشرة إشراقاً وبياضاً وتنقّيها من السموم.',
+    prix: 15.000,
+    image_url: '/صابون عرق السوس والحبة السوداء.jpg'
+  },
+  {
+    id: 10,
+    nom: 'عرق السوس 100غ ب15د',
+    description: 'مسحوق جذور عرق السوس النقي 100%، سر تفتيح البشرة وتبييض التصبغات والكلف طبيعياً. يمكن استخدامه كقناع للوجه مع الطين أو الحليب.',
+    prix: 15.000,
+    image_url: '/عرق السوس 100غ ب15د.jpg'
+  },
+  {
+    id: 11,
+    nom: 'مسحوق عرق السوس الطبيعي 100غ',
+    description: 'مسحوق ناعم وصافٍ من عرق السوس الطبيعي لعمل خلطات لتفتيح وتوحيد لون الجسم والوجه ومكافحة البقع الناتجة عن أشعة الشمس.',
+    prix: 15.000,
+    image_url: '/مسحوق عرق السوس الطبيعي 100غ.jpg'
+  },
+  {
+    id: 12,
+    nom: 'للوبان الذكر ب15',
+    description: 'حبيبات لبان الذكر الحر عالي الجودة، غني بالكولاجين الطبيعي لشد البشرة، مكافحة التجاعيد، وإعطاء الوجه مظهراً شاباً ومشدوداً بامتياز.',
+    prix: 15.000,
+    image_url: '/للوبان الذكر ب15.jpg'
+  },
+  {
+    id: 13,
+    nom: 'لبان ذكر طبيعي نقي 150غ',
+    description: 'عبوة اقتصادية تحتوي على 150 غرام من صمغ لبان الذكر النقي 100%، يستخدم لشد ترهلات الجلد، تحفيز الكولاجين، وترطيب وتفتيح لون البشرة.',
+    prix: 15.000,
+    image_url: '/لبان ذكر طبيعي نقي 150غ.jpg'
   }
-};
+];
 
-const productArMap: Record<string, { nom: string; description: string; ingredients: string[]; conseils: string; bienfaits: string; certification: string }> = {
-  "Savon à la Réglisse": {
-    nom: "صابون عرق السوس وبودرة الأرز للتفتيح",
-    description: "صابون التفتيح الفائق بخلاصة عرق السوس وبودرة الأرز للقضاء على البقع الداكنة والتصبغات ومنحك إشراقة مخملية.",
+// High-fidelity editorial details for each Tunisian organic product (translated)
+const productDetailsMap: Record<string, { ingredients: string[]; conseils: string; bienfaits: string; certification: string }> = {
+  "صابون السدر الطبيعي الممتاز": {
     ingredients: [
-      "خلاصة جذور عرق السوس النقيّة",
-      "بودرة الأرز التونسية فائقة النعومة",
-      "زيت زيتون بكر ممتاز مصبن على البارد",
-      "زيت اللوز الحلو المغذي للبشرة",
-      "زبدة الشيا الخام غير المكررة"
+      "مسحوق أوراق السدر الجبلية العضوية المطهرة",
+      "زيت الزيتون البكر الممتاز المعصور على البارد",
+      "زيت جوز الهند الطبيعي المرطب للبشرة",
+      "زيت اللوز الحلو المغذي وفيتامين E الطبيعي"
     ],
-    conseils: "يستعمل يومياً صباحاً ومساءً على وجه مبلل. تترك الرغوة الغنية على البشرة لمدة دقيقة واحدة قبل الشطف بالماء الدافئ لتحقيق أفضل نتائج التفتيح.",
-    bienfaits: "يستهدف البقع الداكنة والتصبغات بكفاءة، يوحد لون البشرة الباهتة، ويصقل ملمسها ليمنحها نعومة حريرية ولمعاناً طبيعياً.",
-    certification: "طبيعي 100٪ - مصبن على البارد - الوزن: 100 غ"
+    conseils: "يرغى بالماء ويدلك به الوجه أو الجسم بلطف بحركات دائرية ناعمة، يترك لنصف دقيقة لتغذية المسام ثم يشطف بالماء الفاتر.",
+    bienfaits: "ينقي المسام بعمق، ينظف البشرة بلطف دون تجفيفها، يهدئ الالتهابات ويساعد على التخلص من البثور وحب الشباب.",
+    certification: "صنع يدوي طبيعي 100% - خالي من الكيماويات"
   },
-  "Savon au Louban Dakar 150g": {
-    nom: "صابون لبان الذكر الفاخر",
-    description: "إكسير الشباب الأبدي بتركيبة ملكية غنية بلبان الذكر الفاخر لشد البشرة وتوحيد لونها ومكافحة التجاعيد.",
+  "صابون الشوفان والعسل المغذي": {
     ingredients: [
-      "صمغ لبان الذكر النقي (اللبان الذكر الأصلي)",
-      "زيت زيتون بكر ممتاز مصبن على البارد",
-      "زيت أرغان بيولوجي معصور على البارد",
-      "زيت جوز الهند الخام المغذي",
-      "زيت الخروع المرطب والمنعم"
+      "رقائق الشوفان الطبيعية المطحونة ناعماً لتلطيف البشرة",
+      "عسل نحل جبلي طبيعي نقي 100% من المناحل المحلية",
+      "زيت الزيتون البكر التونسي المصبن على البارد",
+      "زيت جوز الهند النقي، زيت اللوز المغذي، وفيتامين E"
     ],
-    conseils: "يُرغى الصابون بلطف على الوجه أو الجسم المبلل، مع التدليك الدائري الخفيف لتنشيط الخلايا وشد البشرة، ثم يشطف جيداً بالماء النقي.",
-    bienfaits: "مجدد خلايا قوي للغاية، يحفز إنتاج الكولاجين الطبيعي، يشد الجلد المترهل، ويخفي عيوب البشرة لتبدو أكثر شباباً.",
-    certification: "طبيعي 100٪ - مصبن على البارد - الوزن: 150 غ"
+    conseils: "يستعمل يومياً لغسيل الوجه والجسم. تدلك الرغوة بلطف بحركات دائرية ناعمة لتنشيط الدورة الدموية ثم يغسل بالماء الفاتر.",
+    bienfaits: "يرطب البشرة الجافة ويغذيها بلطف، يهدئ الحكة والتهيجات الجلدية ويمنح ملمساً ناعماً كالحرير.",
+    certification: "طبيعي 100% غني بالمكونات المغذية والمهدئة"
   },
-  "Savon Duo Réglisse & Louban": {
-    nom: "صابون عرق السوس ولبان الذكر الثنائي",
-    description: "ثنائي الجمال الفاخر الذي يجمع بين قوة عرق السوس في تفتيح البشرة ولبان الذكر في شد الجلد ومقاومة علامات التقدم في السن.",
+  "صابون القهوة والنشاء والكركم للتقشير": {
     ingredients: [
-      "خلاصة عرق السوس المفتحة",
-      "مستخلص لبان الذكر لشد البشرة",
-      "زيت زيتون بكر ممتاز مصبن على البارد",
-      "زيت اللوز الحلو",
-      "زبدة الشيا المغذية"
+      "حبيبات القهوة العضوية المطحونة لتقشير ميكانيكي ناعم وتنشيط الجلد",
+      "مسحوق الكركم العلاجي لتفتيح البشرة وتصفيتها",
+      "نشاء الذرة النقي لشد البشرة وتضييق المسام الواسعة",
+      "زيت الزيتون البكر، زيت جوز الهند، زيت اللوز، وفيتامين E"
     ],
-    conseils: "يوضع على بشرة رطبة مع تدليك خفيف بحركات دائرية. يترك لمدة نصف دقيقة لتتغلغل المكونات ثم يشطف بالماء.",
-    bienfaits: "مفعول مزدوج لتفتيح التصبغات وشد الجلد المترهل، يمنح البشرة مرونة ونضارة مثالية.",
-    certification: "طبيعي 100٪ - مصبن على البارد - الوزن: 100 غ"
+    conseils: "يستعمل 2 إلى 3 مرات في الأسبوع أثناء الاستحمام. دلكي الرغوة بحركات دائرية صاعدة لتقشير الخلايا الميتة برفق ثم اشطفي بالماء الفاتر.",
+    bienfaits: "يقشر خلايا الجلد الميتة بلطف، يفتح ويوحد لون البشرة، ينشط الدورة الدموية السطحية ويزيل التصبغات والشوائب.",
+    certification: "مقشر ومفتح طبيعي فعال ومغذي للبشرة"
   },
-  "Savon Flocons d'Avoine & Miel": {
-    nom: "صابون الشوفان والعسل المهدئ",
-    description: "صابون الشوفان والعسل الطبيعي المهدئ للبشرة الحساسة والجافة، يغذي بعمق، يهدئ التهيج، ويمنح رطوبة فائقة ونعومة مخملية.",
+  "صابون زيت الزيتون وجوز الهند واللوز وفيتامين E": {
     ingredients: [
-      "عسل جبلي طبيعي حر",
-      "شوفان عضوي مطحون ناعم",
-      "زيت زيتون بكر ممتاز مصبن على البارد",
-      "زيت جوز هند خام",
-      "زيت اللوز الحلو الملطف"
+      "زيت زيتون بكر ممتاز معصور على البارد بنسبة عالية لترطيب مكثف",
+      "زيت جوز الهند النقي لرغوة غنية وفاخرة",
+      "زيت اللوز الحلو المغذي والمطري للبشرة الحساسة",
+      "فيتامين E الطبيعي لتعزيز حماية الخلايا ومكافحة الجفاف"
     ],
-    conseils: "يستعمل يومياً للوجه والجسم. يدلك بلطف لتنشيط البشرة والاستفادة من التأثير المرطب والمهدئ للعسل والشوفان.",
-    bienfaits: "يهدئ الاحمرار والتهيج، يغذي البشرة الجافة بعمق، ويحمي الحاجز الطبيعي للجلد.",
-    certification: "طبيعي 100٪ - مصبن على البارد - الوزن: 100 غ"
+    conseils: "يرغى بالماء ويدلك به الوجه أو الجسم بلطف بحركات دائرية ناعمة ثم يشطف جيداً بالماء الفاتر. مناسب لجميع أفراد العائلة.",
+    bienfaits: "يمنح ترطيباً عميقاً جداً، يغذي خلايا الجلد بالفيتامينات الأساسية ويحميه من الجفاف والتهيجات والطقس الجاف.",
+    certification: "تصبين على البارد - ترطيب وحماية يومية فائقة"
   },
-  "Savon Réglisse & Graine Noire / Nigelle": {
-    nom: "صابون عرق السوس والحبة السوداء المنقي",
-    description: "صابون منقّ ومطهر يجمع بين خصائص عرق السوس المفتحة وفوائد الحبة السوداء المعقمة لتنقية البشرة ومحاربة الشوائب وحب الشباب.",
+  "صابون زيت الزيتون وجوز الهند واللوز وفيتامين E d": {
     ingredients: [
-      "خلاصة جذور عرق السوس",
-      "زيت الحبة السوداء الأصلي المعصور على البارد",
-      "زيت زيتون بكر ممتاز مصبن على البارد",
-      "طين أخضر منقي للبشرة",
-      "زيت شجرة الشاي الأساسي المطهر"
+      "زيت زيتون بكر ممتاز ومعصور على البارد بجودة ممتازة",
+      "زيت جوز الهند النقي للرغوة الكريمية الناعمة",
+      "زيت اللوز الحلو المغذي، غليسرين طبيعي، وفيتامين E"
     ],
-    conseils: "يُرغى على وجه رطب مع التركيز على المناطق المعرضة للبثور والدهون، ثم يشطف بماء فاتر ثم بارد لغلق المسام.",
-    bienfaits: "يطهر المسام، يقلل من ظهور الحبوب، ينظم الإفرازات الدهنية ويساعد في إزالة آثار البثور وتوحيد لون البشرة.",
-    certification: "طبيعي 100٪ - مصبن على البارد - الوزن: 100 غ"
+    conseils: "مثالي للاستخدام اليومي لجميع أنواع البشرة. رغي الصابون ودلكي به البشرة المبللة بلطف، ثم اشطفي برفق بالماء الفاتر.",
+    bienfaits: "إصدار خاص بمزيج من الزيوت المصبوبة على البارد لترطيب فائق ونعومة تدوم طويلاً، ويعزز مرونة الجلد وحمايته.",
+    certification: "صنع يدوي فاخر على البارد 100% في المهدية"
   },
-  "Savon Café, Amidon & Curcuma": {
-    nom: "صابون القهوة والنشاء والكركم المنشط",
-    description: "تركيبة فريدة مقشرة ومفتحة تجمع بين تفل القهوة المنشط، النشاء لشد المسام، والكركم لإعادة النضارة والإشراق الطبيعي للبشرة.",
+  "صابون طبيعي على البارد بزيت الزيتون واللوز رقم 1": {
     ingredients: [
-      "تفل قهوة طبيعي ناعم",
-      "نشا الذرة المنعم للمسام",
-      "مسحوق الكركم الصافي المفتح",
-      "زيت زيتون بكر ممتاز مصبن على البارد",
-      "زبدة الشيا المرطبة"
+      "زيت الزيتون البكر معصور على البارد بالساحل التونسي",
+      "زيت اللوز الحلو المنعم والمهدئ للبشرة الحساسة",
+      "زيت جوز الهند العضوي النقي، وفيتامين E الطبيعي كمضاد للأكسدة"
     ],
-    conseils: "يستعمل مرتين إلى 3 مرات أسبوعياً كقناع ومقشر لطيف أثناء الاستحمام. يدلك بحركات دائرية ثم يشطف بالماء.",
-    bienfaits: "ينشط الدورة الدموية السطحية، يصفي البشرة، يشد المسام الواسعة، ويمنح نضارة فائقة من الاستعمال الأول.",
-    certification: "طبيعي 100٪ - مصبن على البارد - الوزن: 100 غ"
+    conseils: "رغي الصابون بين يديك بالماء الدافئ، دلكي الوجه والرقبة برفق لمدة دقيقة ثم اشطفي بالماء.",
+    bienfaits: "يحفظ جودة الزيوت الطبيعية بفضل التصبين على البارد، لطيف للغاية لترطيب البشرة الحساسة ومنع تهيجاتها.",
+    certification: "طبيعي ومصنوع على البارد بالكامل"
   },
-  "Savon au Sidr / Jujubier": {
-    nom: "صابون السدر الطبيعي المطهر",
-    description: "صابون السدر التقليدي الفاخر لتنظيف البشرة وتطهيرها بعمق، يهدئ الحكة والالتهابات، ويضفي نعومة ونقاء طبيعياً لا يضاهى.",
+  "صابون طبيعي على البارد بزيت الزيتون واللوز رقم 3": {
     ingredients: [
-      "مسحوق أوراق السدر (النبق) الطبيعي",
-      "زيت زيتون بكر ممتاز مصبن على البارد",
-      "زيت جوز الهند النقي",
-      "زيت اللوز الحلو",
-      "الطين الأبيض اللطيف (الكاولين)"
+      "زيت الزيتون البكر الممتاز المعصور تقليدياً",
+      "زيت اللوز الحلو المغذي والمطري للبشرة المجهدة",
+      "زيت جوز الهند الطبيعي، وفيتامين E الطبيعي لحيوية البشرة"
     ],
-    conseils: "يُرغى على وجه أو جسم مبلل، يترك لبضع ثوانٍ لتستفيد البشرة من خصائص السدر المهدئة والمطهرة، ثم يشطف جيداً.",
-    bienfaits: "يهدئ الحكة والالتهابات الجلدية، يعقم بلطف، يوحد لون البشرة، ومناسب جداً للبشرة الحساسة والمتهيجة.",
-    certification: "طبيعي 100٪ - مصبن على البارد - الوزن: 100 غ"
+    conseils: "يغسل به الوجه والجسم بشكل يومي للاستفادة من خصائص الزيوت الطبيعية المغذية، ثم يشطف بالماء الدافئ.",
+    bienfaits: "يوفر ترطيباً عميقاً يغذي طبقات الجلد الداخلية، ينعم التجاعيد الخفيفة ويمنح مرونة وحماية طبيعية.",
+    certification: "صنع يدوي تقليدي نقي 100%"
+  },
+  "صابون طبيعي على البارد بزيت الزيتون واللوز رقم 5": {
+    ingredients: [
+      "زيت الزيتون البكر الممتاز معصور على البارد للحفاظ على عناصره",
+      "زيت اللوز الحلو المغذي والمطري للبشرة الجافة",
+      "زيت جوز الهند الطبيعي النقي، وفيتامين E الطبيعي لتعزيز مرونة البشرة"
+    ],
+    conseils: "يرغى الصابون بالماء ويدلك به الوجه والجسم بلطف بحركات دائرية صاعدة ثم يشطف بالماء الفاتر.",
+    bienfaits: "تركيبة غنية ومغذية للغاية، ينعم ملمس الجلد، يزيل الخشونة والجفاف، ويعيد الحيوية والتألق للبشرة الباهتة.",
+    certification: "تصبين على البارد نقي 100%"
+  },
+  "صابون عرق السوس والحبة السوداء": {
+    ingredients: [
+      "مستخلص جذور عرق السوس الطبيعي الفعال في تفتيح التصبغات",
+      "الحبة السوداء المطحونة ناعماً كمضاد طبيعي للبكتيريا والالتهابات",
+      "زيت الزيتون البكر، زيت جوز الهند، زيت اللوز الحلو، وفيتامين E الطبيعي"
+    ],
+    conseils: "يرغى بالماء ويدلك به الوجه بلطف بحركات دائرية ويترك لنصف دقيقة قبل الشطف. يستعمل صباحاً ومساءً لنتائج تفتيح مثالية.",
+    bienfaits: "يفتح البشرة بفعالية، يوحد لون الجلد، يزيل بقع الكلف والنمش الناتجة عن الشمس ويمنح نضارة فائقة.",
+    certification: "تركيبة تفتيح طبيعية 100% - خالية من المبيضات الاصطناعية"
+  },
+  "عرق السوس 100غ ب15د": {
+    ingredients: [
+      "جذور عرق سوس مجففة ومطحونة ناعماً للغاية بجودة ممتازة وسحر علاجي فعال 100%"
+    ],
+    conseils: "يخلط المسحوق مع القليل من الزبادي، ماء الورد أو العسل ويوضع كقناع على الوجه والتصبغات لمدة 15-20 دقيقة ثم يشطف بالماء الفاتر.",
+    bienfaits: "مبيض وتفتيح طبيعي فائق للبشرة، يعالج تصبغات أشعة الشمس والكلف والنمش ويمنح بشرة صافية خالية من العيوب والشوائب.",
+    certification: "مسحوق نقي 100% لتفتيح البشرة العلاجي"
+  },
+  "مسحوق عرق السوس الطبيعي 100غ": {
+    ingredients: [
+      "مسحوق ناعم وصافٍ من عرق السوس الطبيعي 100% المستخلص من جذور النبات الفاخرة"
+    ],
+    conseils: "اخلطي ملعقة من المسحوق مع الطين الأبيض وماء الورد، ضعي الماسك على الوجه والرقبة لمدة 15 دقيقة ثم اشطفي بالماء الفاتر.",
+    bienfaits: "يزيل البقع الداكنة، يوحد لون الجسم والوجه، يعالج آثار البثور ويمنح نضارة وإشراقاً فورياً بفضل مركب الجلابريدين الطبيعي.",
+    certification: "أعشاب طبيعية علاجية نقية 100%"
+  },
+  "للوبان الذكر ب15": {
+    ingredients: [
+      "بلورات صمغ اللبان الذكر النقي والطبيعي 100% من أجود الغابات الطبيعية المحفزة للكولاجين"
+    ],
+    conseils: "تنقع حبات من لبان الذكر في ماء دافئ ليلة كاملة، واستخدمي الماء كمنظف أو تونر يومي للبشرة بقطنة ناعمة قبل النوم.",
+    bienfaits: "يشد الجلد بفعالية كولاجين طبيعي، يسهم في ملء الخطوط الدقيقة والتجاعيد، ويفتح لون البشرة الباهتة والمجهدة.",
+    certification: "بلورات صمغ اللبان الذكر الصافي 100%"
+  },
+  "لبان ذكر طبيعي نقي 150غ": {
+    ingredients: [
+      "عبوة اقتصادية 150غ من بلورات صمغ لبان ذكر طبيعي وحر ونقي 100% عالي الجودة"
+    ],
+    conseils: "يمكن نقعه في الماء الدافئ لعمل كولاجين طبيعي وتونر منشط، أو طحنه ودمجه مع النشاء وماء الورد لعمل ماسك لشد وتبييض البشرة.",
+    bienfaits: "يحفز مرونة البشرة، يساعد على تجديد الخلايا المترهلة وشد الوجه والرقبة، تفتيح الهالات السوداء وإعطاء إشراقة شبابية.",
+    certification: "لبان ذكر نقي 100% - غني بالكولاجين الطبيعي"
   }
 };
 
@@ -229,32 +242,129 @@ const getProductDetails = (nom: string) => {
   const match = productDetailsMap[nom];
   if (match) return match;
   
-  const isSavon = nom.toLowerCase().includes("savon");
-  const isCreme = nom.toLowerCase().includes("crème") || nom.toLowerCase().includes("creme");
-  
   return {
-    ingredients: isSavon ? [
-      "Huile d'olive extra-vierge tunisienne saponifiée",
-      "Huile de coco de première pression",
-      "Glycérine végétale naturelle issue de la saponification",
-      "Extraits botaniques du Cap Bon"
-    ] : isCreme ? [
-      "Eau pure distillée de fleur d'oranger",
-      "Huile de pépins de figue de barbarie biologique",
-      "Beurre de karité pur",
-      "Huiles essentielles purifiantes et protectrices"
-    ] : [
-      "Huile d'olive vierge du Sahel",
-      "Ingrédients 100% d'origine biologique locale",
-      "Fleurs et extraits pressés à la main"
+    ingredients: [
+      "زيت زيتون تونسي بكر ممتاز مصبن",
+      "زيت جوز هند طبيعي معصور على البارد",
+      "غليسرين نباتي نقي مستخلص طبيعياً",
+      "مستخلصات نباتية وعطرية برية من المهدية"
     ],
-    conseils: isSavon 
-      ? "Faire mousser le savon entre vos mains mouillées, masser délicatement la peau et rincer abondamment à l'eau claire."
-      : "Prendre une noisette et masser doucement du bout des doigts sur une peau propre, matin et soir.",
-    bienfaits: "Hydrate, nourrit et redonne éclat naturel à la peau grâce à des composants locaux sans perturbateurs endocriniens.",
-    certification: "100% Fait Main - Savoir-faire tunisien"
+    conseils: "دلكي الصابون بالماء بين يديك لتكوين رغوة كريمية غنية، ثم اغسلي بها بشرتك بلطف واشطفيها جيداً بالماء الفاتر.",
+    bienfaits: "يرطب، يغذي، ويعيد الإشراق الطبيعي والنعومة لبشرتك باستخدام مكونات تونسية محلية نقية خالية من أي مواد كيميائية ضارة.",
+    certification: "صنع يدوي 100% - فخر الصناعة التقليدية التونسية"
   };
 };
+
+function getProductTheme(nom: string) {
+  if (nom.includes('الياسمين')) {
+    return {
+      bg: 'bg-[#fffafc] dark:bg-[#25181f]/50',
+      border: 'border-pink-200/80 dark:border-pink-900/40',
+      accentBg: 'bg-pink-100/40 dark:bg-pink-900/20 text-pink-800 dark:text-pink-300',
+      tagColor: 'text-pink-900 dark:text-pink-300',
+      badgeLabel: 'كريم الياسمين الفاخر 🌸',
+      embeddedLabel: 'غني بخلاصة الياسمين التونسي النقي المقطر وزبدة الشيا'
+    };
+  }
+  if (nom.includes('التين الشوكي')) {
+    return {
+      bg: 'bg-[#fbf4fa] dark:bg-[#221220]/50',
+      border: 'border-purple-200/80 dark:border-purple-900/40',
+      accentBg: 'bg-purple-100/40 dark:bg-purple-900/20 text-purple-800 dark:text-purple-300',
+      tagColor: 'text-purple-900 dark:text-purple-300',
+      badgeLabel: 'زيت بذور التين الشوكي 🌵',
+      embeddedLabel: 'مصنع بزيت بذور التين الشوكي الأكثر فخامة ونقاءً'
+    };
+  }
+  if (nom.includes('طبلبة')) {
+    return {
+      bg: 'bg-[#fafaf4] dark:bg-[#1e2017]/50',
+      border: 'border-yellow-200/80 dark:border-yellow-900/40',
+      accentBg: 'bg-yellow-100/40 dark:bg-yellow-900/20 text-yellow-800 dark:text-yellow-300',
+      tagColor: 'text-yellow-900 dark:text-yellow-300',
+      badgeLabel: 'صناعة طبلبة التقليدية 🏺',
+      embeddedLabel: 'منتج تقليدي بخلطة تاريخية مصبوبة على البارد في طبلبة'
+    };
+  }
+  if (nom.includes('السدر')) {
+    return {
+      bg: 'bg-[#f4faf6] dark:bg-[#122216]/50',
+      border: 'border-emerald-200/80 dark:border-emerald-900/40',
+      accentBg: 'bg-emerald-100/50 dark:bg-emerald-900/20 text-emerald-800 dark:text-emerald-300',
+      tagColor: 'text-[#2C3E2E] dark:text-emerald-300',
+      badgeLabel: 'خلاصة السدر الطبيعية 🌿',
+      embeddedLabel: 'مرصع بأوراق السدر الجبلية المنقوعة بالكامل'
+    };
+  }
+  if (nom.includes('الشوفان')) {
+    return {
+      bg: 'bg-[#fcf9f2] dark:bg-[#252018]/50',
+      border: 'border-amber-200/80 dark:border-amber-900/40',
+      accentBg: 'bg-amber-100/40 dark:bg-amber-900/20 text-amber-800 dark:text-amber-300',
+      tagColor: 'text-amber-900 dark:text-amber-300',
+      badgeLabel: 'عسل حر وشوفان مغذٍّ 🍯',
+      embeddedLabel: 'مغمور برقائق الشوفان الذهبية وقطرات العسل النقي'
+    };
+  }
+  if (nom.includes('عرق السوس والحبة السوداء')) {
+    return {
+      bg: 'bg-[#f8f6f9] dark:bg-[#1d1a24]/50',
+      border: 'border-indigo-200/70 dark:border-indigo-900/40',
+      accentBg: 'bg-indigo-100/30 dark:bg-indigo-900/20 text-indigo-800 dark:text-indigo-300',
+      tagColor: 'text-indigo-950 dark:text-indigo-300',
+      badgeLabel: 'عرق سوس وتوحيد اللون ✨',
+      embeddedLabel: 'مكثف بجزيئات الحبة السوداء ومستخلص عرق السوس'
+    };
+  }
+  if (nom.includes('القهوة')) {
+    return {
+      bg: 'bg-[#faf7f3] dark:bg-[#201a14]/50',
+      border: 'border-orange-300/50 dark:border-orange-900/40',
+      accentBg: 'bg-orange-100/30 dark:bg-orange-900/20 text-orange-900 dark:text-orange-300',
+      tagColor: 'text-amber-900 dark:text-amber-400',
+      badgeLabel: 'مقشر القهوة والنشاء والكركم ☕',
+      embeddedLabel: 'مزيج حبيبات البن العضوية الفاخرة والنشاء لتقشير مذهل'
+    };
+  }
+  if (nom.includes('اللبان الذكر') || nom.includes('لبان ذكر')) {
+    return {
+      bg: 'bg-[#f8f8f6] dark:bg-[#1e1e1a]/50',
+      border: 'border-stone-200/80 dark:border-stone-800/40',
+      accentBg: 'bg-stone-100/50 dark:bg-stone-900/20 text-stone-800 dark:text-stone-300',
+      tagColor: 'text-stone-900 dark:text-stone-300',
+      badgeLabel: 'كولاجين طبيعي مشدود 💎',
+      embeddedLabel: 'مدمج ببلورات صمغ اللبان الذكر الغنية بالكولاجين'
+    };
+  }
+  if (nom.includes('مسحوق عرق السوس')) {
+    return {
+      bg: 'bg-[#faf9f0] dark:bg-[#242419]/40',
+      border: 'border-yellow-200/70 dark:border-yellow-900/30',
+      accentBg: 'bg-yellow-100/40 dark:bg-yellow-900/20 text-yellow-800 dark:text-yellow-300',
+      tagColor: 'text-yellow-950 dark:text-yellow-400',
+      badgeLabel: 'بودرة عرق السوس النقي 100% 🧪',
+      embeddedLabel: 'مسحوق جذور عرق السوس الصافي والمطحون فائق النعومة'
+    };
+  }
+  if (nom.includes('زيت الزيتون')) {
+    return {
+      bg: 'bg-[#f6faf4] dark:bg-[#162013]/50',
+      border: 'border-lime-200/70 dark:border-lime-900/30',
+      accentBg: 'bg-lime-100/40 dark:bg-lime-900/20 text-lime-800 dark:text-lime-300',
+      tagColor: 'text-lime-950 dark:text-lime-300',
+      badgeLabel: 'تصبين على البارد وفيتامين E 🧴',
+      embeddedLabel: 'مصبوب يدوياً بزيت الزيتون البكر وزيت اللوز مع فيتامين E'
+    };
+  }
+  return {
+    bg: 'bg-[#FAF9F5]/60 dark:bg-slate-900/30',
+    border: 'border-[#E8E4DB]/80 dark:border-slate-800/50',
+    accentBg: 'bg-slate-100/50 dark:bg-slate-800/50 text-slate-800 dark:text-slate-300',
+    tagColor: 'text-[#C18D5D]',
+    badgeLabel: 'صنع يدوي بالمهدية 🌸',
+    embeddedLabel: 'تركيبة نقية بالكامل مستخلصة يدوياً من الطبيعة التونسية'
+  };
+}
 
 const productContainerVariants = {
   hidden: { opacity: 0 },
@@ -314,6 +424,14 @@ function Tooltip({ content, children }: TooltipProps) {
   );
 }
 
+export interface CartItem {
+  id: number;
+  nom: string;
+  prix: number;
+  image_url: string;
+  quantity: number;
+}
+
 interface LazyImageProps {
   src: string;
   alt: string;
@@ -353,10 +471,9 @@ function LazyImage({ src, alt, className = "", referrerPolicy }: LazyImageProps)
 
   return (
     <div ref={elementRef} className="relative w-full h-full overflow-hidden bg-[#E8E4DB]">
-      {/* Premium brand-colored pulse loader */}
       {!isLoaded && (
         <div className="absolute inset-0 bg-[#E8E4DB] flex items-center justify-center animate-pulse">
-          <span className="text-[9px] uppercase tracking-[0.25em] font-serif italic text-[#2C3E2E]/25">Pure Glow</span>
+          <span className="text-[10px] uppercase tracking-[0.25em] font-sans text-[#2C3E2E]/25">بيور غلو</span>
         </div>
       )}
       {isInView && (
@@ -376,81 +493,185 @@ function LazyImage({ src, alt, className = "", referrerPolicy }: LazyImageProps)
 }
 
 export default function App() {
-  const [lang, setLang] = useState<'fr' | 'ar'>('ar');
-  const [heroMediaType, setHeroMediaType] = useState<'image' | 'video'>('image');
-  const [products, setProducts] = useState<Produit[]>([
-    {
-      id: "savon-reglisse",
-      nom: "Savon à la Réglisse",
-      prix: 15.000,
-      description: "Un soin éclaircissant d'exception, formulé à la réglisse et à la poudre de riz pour harmoniser le teint et atténuer les taches.",
-      image_url: "/licorice-soap-100g-15dt.jpeg",
-      categorie: "savon"
-    },
-    {
-      id: "savon-louban-dakar",
-      nom: "Savon au Louban Dakar 150g",
-      prix: 18.000,
-      description: "Un soin anti-âge impérial saponifié à froid au précieux Louban Dakar (Oliban) pour raffermir, unifier et lisser le grain de peau.",
-      image_url: "/louban-soap-150g-18dt.jpeg",
-      categorie: "savon"
-    },
-    {
-      id: "savon-duo-reglisse-louban",
-      nom: "Savon Duo Réglisse & Louban",
-      prix: 15.000,
-      description: "L'alliance parfaite de la réglisse illuminatrice et du louban dakar raffermissant pour une double action jeunesse et éclat.",
-      image_url: "/licorice-louban-soap-15dt.jpeg",
-      categorie: "savon"
-    },
-    {
-      id: "savon-avoine-miel",
-      nom: "Savon Flocons d'Avoine & Miel",
-      prix: 12.000,
-      description: "Un véritable havre de douceur aux flocons d'avoine apaisants et au miel pur pour réparer et hydrater les peaux délicates.",
-      image_url: "/oatmeal-honey-soap-12dt.jpeg",
-      categorie: "savon"
-    },
-    {
-      id: "savon-reglisse-nigelle",
-      nom: "Savon Réglisse & Graine Noire / Nigelle",
-      prix: 15.000,
-      description: "Une synergie purifiante qui combine l'action anti-taches de la réglisse et les vertus antibactériennes de l'huile de nigelle.",
-      image_url: "/licorice-nigella-soap-15dt.jpeg",
-      categorie: "savon"
-    },
-    {
-      id: "savon-cafe-amidon-curcuma",
-      nom: "Savon Café, Amidon & Curcuma",
-      prix: 15.000,
-      description: "Un exfoliant et antioxydant remarquable au marc de café tonifiant, à l'amidon lissant et au curcuma illuminateur.",
-      image_url: "/coffee-starch-turmeric-soap-15dt.jpeg",
-      categorie: "savon"
-    },
-    {
-      id: "savon-sidr-jujubier",
-      nom: "Savon au Sidr / Jujubier",
-      prix: 15.000,
-      description: "Un nettoyant ancestral d'exception aux feuilles de Sidr (jujubier) pour purifier en profondeur, calmer les peaux sensibles et unifier le teint.",
-      image_url: "/sidr-soap-15dt.jpeg",
-      categorie: "savon"
-    }
-  ]);
+  const [products, setProducts] = useState<Produit[]>(staticProducts);
   const [orders, setOrders] = useState<Commande[]>([]);
-  const [loadingProducts, setLoadingProducts] = useState(false);
+  const [loadingProducts, setLoadingProducts] = useState(true);
   const [loadingOrders, setLoadingOrders] = useState(true);
   const [activeTab, setActiveTab] = useState<'boutique' | 'admin' | 'suivi'>('boutique');
   const [alertMsg, setAlertMsg] = useState<{ type: 'success' | 'error', text: string } | null>(null);
   const [openFaqIndex, setOpenFaqIndex] = useState<number | null>(null);
   const [selectedProduct, setSelectedProduct] = useState<Produit | null>(null);
   const [isNightMode, setIsNightMode] = useState<boolean>(false);
-
-  // States for administrator authentication
+  const [newOrdersCount, setNewOrdersCount] = useState<number>(0);
   const [isAdminAuthenticated, setIsAdminAuthenticated] = useState<boolean>(false);
-  const [showAdminLoginModal, setShowAdminLoginModal] = useState<boolean>(false);
-  const [emailInput, setEmailInput] = useState<string>('samisami231182@gmail.com');
-  const [passwordInput, setPasswordInput] = useState<string>('');
-  const [loginError, setLoginError] = useState<string | null>(null);
+  const [adminSession, setAdminSession] = useState<any>(null);
+
+  // Persistent Shopping Cart state (local storage)
+  const [cart, setCart] = useState<CartItem[]>(() => {
+    try {
+      const saved = localStorage.getItem('biocosmetique_cart');
+      return saved ? JSON.parse(saved) : [];
+    } catch (e) {
+      console.error("Failed to load cart:", e);
+      return [];
+    }
+  });
+  const [isCartOpen, setIsCartOpen] = useState(false);
+
+  // Sync cart to local storage on change
+  useEffect(() => {
+    localStorage.setItem('biocosmetique_cart', JSON.stringify(cart));
+  }, [cart]);
+
+  // Add item to cart handler
+  const handleAddToCart = (product: Produit) => {
+    setCart((prevCart) => {
+      const existing = prevCart.find((item) => item.id === product.id);
+      if (existing) {
+        setAlertMsg({
+          type: 'success',
+          text: `تم زيادة كمية "${product.nom}" في السلة بنجاح!`
+        });
+        setTimeout(() => setAlertMsg(null), 5000);
+        return prevCart.map((item) =>
+          item.id === product.id ? { ...item, quantity: item.quantity + 1 } : item
+        );
+      } else {
+        setAlertMsg({
+          type: 'success',
+          text: `تم إضافة "${product.nom}" إلى السلة بنجاح!`
+        });
+        setTimeout(() => setAlertMsg(null), 5000);
+        return [
+          ...prevCart,
+          {
+            id: product.id,
+            nom: product.nom,
+            prix: product.prix,
+            image_url: product.image_url,
+            quantity: 1,
+          },
+        ];
+      }
+    });
+  };
+
+  // Update item quantity in cart
+  const handleUpdateCartQuantity = (productId: number, quantity: number) => {
+    if (quantity <= 0) {
+      handleRemoveFromCart(productId);
+      return;
+    }
+    setCart((prevCart) =>
+      prevCart.map((item) => (item.id === productId ? { ...item, quantity } : item))
+    );
+  };
+
+  // Remove item from cart
+  const handleRemoveFromCart = (productId: number) => {
+    setCart((prevCart) => {
+      const item = prevCart.find((i) => i.id === productId);
+      if (item) {
+        setAlertMsg({
+          type: 'success',
+          text: `تم إزالة "${item.nom}" من السلة.`
+        });
+        setTimeout(() => setAlertMsg(null), 5000);
+      }
+      return prevCart.filter((item) => item.id !== productId);
+    });
+  };
+
+  // Clear cart
+  const handleClearCart = () => {
+    setCart([]);
+    setAlertMsg({
+      type: 'success',
+      text: 'تم إفراغ السلة بنجاح.'
+    });
+    setTimeout(() => setAlertMsg(null), 5000);
+  };
+
+  // Finalize order via Chatbot handler
+  const handleFinalizeOrderViaChat = () => {
+    if (cart.length === 0) return;
+
+    // Build the Arabic order summary text for Chatbot interaction
+    const cartDetails = cart
+      .map((item) => `- ${item.quantity}x ${item.nom} (${(item.prix * item.quantity).toFixed(3)} د.ت)`)
+      .join('\n');
+    const totalRaw = cart.reduce((sum, item) => sum + item.prix * item.quantity, 0);
+    const shippingCost = totalRaw >= 60 ? 0 : 7;
+    const totalWithShipping = totalRaw + shippingCost;
+
+    const messagePrompt = `أهلاً سارة! أرغب في إتمام طلب شراء سلة المنتجات الخاصة بي مباشرة من هنا:
+${cartDetails}
+
+المجموع الفرعي للمنتجات: ${totalRaw.toFixed(3)} د.ت
+مصاريف الشحن: ${shippingCost === 0 ? 'مجاني 🚚' : `${shippingCost.toFixed(3)} د.ت`}
+المجموع الكلي: ${totalWithShipping.toFixed(3)} د.ت
+
+الرجاء مساعدتي في إتمام عملية الشراء وتأكيد طلبيتي! ✨`;
+
+    // Dispatch the custom event to Chatbot component
+    const event = new CustomEvent('chat-order', {
+      detail: { customPrompt: messagePrompt }
+    });
+    window.dispatchEvent(event);
+
+    // Close cart panel
+    setIsCartOpen(false);
+
+    // Alert notification banner in Arabic
+    setAlertMsg({
+      type: 'success',
+      text: 'تم تحويل السلة للدردشة! يرجى فتح نافذة المستشارة "سارة" في الأسفل لتأكيد الاسم ورقم الهاتف والعنوان لإتمام طلبكِ في ثوانٍ.'
+    });
+    setTimeout(() => setAlertMsg(null), 10000);
+  };
+
+  // Synthesize an elegant chime sound when a new order arrives
+  const playNotificationSound = () => {
+    try {
+      const AudioContextClass = window.AudioContext || (window as any).webkitAudioContext;
+      if (!AudioContextClass) return;
+      const ctx = new AudioContextClass();
+      
+      // Tone 1: gentle chime tone (C5)
+      const osc1 = ctx.createOscillator();
+      const gain1 = ctx.createGain();
+      osc1.type = 'sine';
+      osc1.frequency.setValueAtTime(523.25, ctx.currentTime);
+      gain1.gain.setValueAtTime(0.12, ctx.currentTime);
+      gain1.gain.exponentialRampToValueAtTime(0.001, ctx.currentTime + 0.35);
+      
+      osc1.connect(gain1);
+      gain1.connect(ctx.destination);
+      osc1.start();
+      osc1.stop(ctx.currentTime + 0.35);
+      
+      // Tone 2: high clean note shortly after (E5)
+      setTimeout(() => {
+        try {
+          const osc2 = ctx.createOscillator();
+          const gain2 = ctx.createGain();
+          osc2.type = 'sine';
+          osc2.frequency.setValueAtTime(659.25, ctx.currentTime);
+          gain2.gain.setValueAtTime(0.12, ctx.currentTime);
+          gain2.gain.exponentialRampToValueAtTime(0.001, ctx.currentTime + 0.55);
+          
+          osc2.connect(gain2);
+          gain2.connect(ctx.destination);
+          osc2.start();
+          osc2.stop(ctx.currentTime + 0.55);
+        } catch (e) {
+          // Ignore potential context interaction limits
+        }
+      }, 100);
+    } catch (err) {
+      console.warn("Could not play synthesized chime:", err);
+    }
+  };
 
   // States for order tracking
   const [trackRef, setTrackRef] = useState<string>('');
@@ -462,7 +683,7 @@ export default function App() {
   const handleTrackOrder = async (referenceId?: string) => {
     const refToUse = referenceId || trackRef;
     if (!refToUse.trim()) {
-      setTrackError(lang === 'ar' ? 'الرجاء إدخال رقم مرجع صالح' : 'Veuillez saisir un numéro de référence.');
+      setTrackError('الرجاء إدخال رقم الهاتف أو رقم الطلب لمتابعة الطلبية.');
       setTrackedOrder(null);
       return;
     }
@@ -471,909 +692,764 @@ export default function App() {
     setTrackError(null);
     try {
       const cleanRef = refToUse.replace('#', '').trim();
-      const res = await fetch(`http://localhost:5000/api/orders/track/${cleanRef}`);
-      const data = await res.json();
-      if (data.success && data.order) {
-        setTrackedOrder(data.order);
-      } else {
-        // Fallback to local state / search in orders state just in case
-        const found = orders.find(o => String(o.id) === cleanRef);
-        if (found) {
-          setTrackedOrder(found);
-        } else {
-          setTrackError(
-            lang === 'ar' 
-              ? 'لم نتمكن من العثور على أي طلب بهذا الرقم. الرجاء التثبت وإعادة المحاولة.' 
-              : 'Aucune commande trouvée pour cette référence. Veuillez vérifier le numéro.'
-          );
-          setTrackedOrder(null);
-        }
-      }
-    } catch (err) {
-      console.error("Tracking error:", err);
-      // Fallback to local check
-      const cleanRef = refToUse.replace('#', '').trim();
-      const found = orders.find(o => String(o.id) === cleanRef);
+      
+      // Search in local orders state by ID or telephone number
+      const found = orders.find(o => {
+        const cleanId = String(o.id).trim();
+        const cleanPhone = String(o.telephone).replace(/\s+/g, '').trim();
+        const cleanQuery = cleanRef.replace(/\s+/g, '');
+        return cleanId === cleanQuery || cleanPhone === cleanQuery;
+      });
+      
       if (found) {
         setTrackedOrder(found);
       } else {
-        setTrackError(
-          lang === 'ar' 
-            ? 'خطأ أثناء الاتصال بالخادم. الرجاء المحاولة لاحقاً.' 
-            : 'Erreur de connexion au serveur. Veuillez réessayer.'
-        );
+        setTrackError('لم نتمكن من العثور على أي طلب بهذا الرقم أو رقم الهاتف. يرجى التثبت من الرقم والمحاولة مجدداً.');
         setTrackedOrder(null);
       }
+    } catch (err) {
+      console.error("Tracking error:", err);
+      setTrackError('حدث خطأ أثناء البحث عن الطلبية. يرجى المحاولة مرة أخرى لاحقاً.');
+      setTrackedOrder(null);
     } finally {
       setTrackLoading(false);
     }
   };
 
+  // Update order status handler
+  const handleUpdateOrderStatus = async (orderId: number, newStatus: string) => {
+    try {
+      const success = await updateCommandeStatut(orderId, newStatus);
+      if (success) {
+        // Update local orders state
+        setOrders(prev => prev.map(o => o.id === orderId ? { ...o, statut: newStatus } : o));
+        setAlertMsg({ type: 'success', text: 'تم تحديث حالة الطلبية بنجاح!' });
+        setTimeout(() => setAlertMsg(null), 5000);
+      } else {
+        setAlertMsg({ type: 'error', text: 'فشل في تحديث حالة الطلبية. يرجى المحاولة مجدداً.' });
+        setTimeout(() => setAlertMsg(null), 5000);
+      }
+    } catch (err) {
+      console.error("Failed to update status:", err);
+      setAlertMsg({ type: 'error', text: 'حدث خطأ غير متوقع أثناء تحديث حالة الطلبية.' });
+      setTimeout(() => setAlertMsg(null), 5000);
+    }
+  };
+
   // Fetch products
   const fetchProducts = async () => {
+    setLoadingProducts(true);
     try {
-      const res = await fetch('http://localhost:5000/api/products');
-      const data = await res.json();
-      if (data.success) {
-        const mappedProducts = data.products.map((p: Produit) => ({
+      const products = await getProduits();
+      const mapped = products.map((p: any) => {
+        const matchStatic = staticProducts.find(sp => sp.id === p.id || sp.nom === p.nom);
+        return {
           ...p,
-          image_url: localImageMap[p.image_url] || p.image_url
-        }));
-        setProducts(mappedProducts);
-      }
+          image_url: matchStatic ? matchStatic.image_url : p.image_url,
+          prix: 15.000
+        };
+      });
+      setProducts(mapped);
     } catch (e) {
-      console.error("Erreur de récupération des produits:", e);
+      console.error("Erreur de récupération des produits, utilisation du local:", e);
+      setProducts(staticProducts);
     } finally {
       setLoadingProducts(false);
     }
   };
 
   // Fetch orders
-  const fetchOrders = async () => {
-    if (!isAdminAuthenticated) {
-      setLoadingOrders(false);
-      return;
-    }
-    setLoadingOrders(true);
+  const fetchOrders = async (isSilent: boolean = false) => {
+    if (!isSilent) setLoadingOrders(true);
     try {
-      const res = await fetch('http://localhost:5000/api/orders');
-      const data = await res.json();
-      if (data.success) {
-        setOrders(data.orders);
-      }
+      const orders = await getCommandes();
+      setOrders(prevOrders => {
+        // If we already have loaded some orders in previous renders, check for brand new orders
+        if (prevOrders.length > 0) {
+          const newOrders = orders.filter(
+            (newO: Commande) => !prevOrders.some((oldO: Commande) => oldO.id === newO.id)
+          );
+          if (newOrders.length > 0) {
+            // Trigger sound notification (chime)
+            playNotificationSound();
+            // Update badge count of new unread orders
+            setNewOrdersCount(prev => prev + newOrders.length);
+            // Trigger alert
+            setAlertMsg({
+              type: 'success',
+              text: `🔔 تنبيه: تم استلام ${newOrders.length} طلبية جديدة وتحديث السجل تلقائياً!`
+            });
+            setTimeout(() => setAlertMsg(null), 8000);
+          }
+        }
+        return orders;
+      });
     } catch (e) {
       console.error("Erreur de récupération des commandes:", e);
     } finally {
-      setLoadingOrders(false);
+      if (!isSilent) setLoadingOrders(false);
     }
   };
 
   useEffect(() => {
     fetchProducts();
+    fetchOrders();
+    
+    // Vérifier la session Supabase au montage
+    checkAdminSession();
+    
+    // Auto-refresh orders silently every 12 seconds to instantly capture new automated chat orders!
+    const interval = setInterval(() => {
+      fetchOrders(true);
+    }, 12000);
+    return () => clearInterval(interval);
   }, []);
 
-  useEffect(() => {
-    if (isAdminAuthenticated) {
-      fetchOrders();
-      // Auto refresh orders every 10 seconds to catch chat-registered orders live!
-      const interval = setInterval(() => {
-        fetchOrders();
-      }, 10000);
-      return () => clearInterval(interval);
-    } else {
-      setOrders([]);
+  // Vérifier la session admin Supabase
+  const checkAdminSession = async () => {
+    if (!supabase) return;
+    
+    try {
+      const { data: { session } } = await supabase.auth.getSession();
+      if (session) {
+        setAdminSession(session);
+        setIsAdminAuthenticated(true);
+      } else {
+        setAdminSession(null);
+        setIsAdminAuthenticated(false);
+      }
+    } catch (error) {
+      console.error('Erreur vérification session:', error);
+      setAdminSession(null);
+      setIsAdminAuthenticated(false);
     }
-  }, [isAdminAuthenticated]);
+  };
+
+  // Gérer le succès de login
+  const handleLoginSuccess = () => {
+    checkAdminSession();
+  };
+
+  // Déconnexion admin
+  const handleAdminLogout = async () => {
+    if (!supabase) return;
+    
+    try {
+      await supabase.auth.signOut();
+      setAdminSession(null);
+      setIsAdminAuthenticated(false);
+      setAlertMsg({ type: 'success', text: 'تم تسجيل الخروج بنجاح' });
+      setTimeout(() => setAlertMsg(null), 3000);
+    } catch (error) {
+      console.error('Erreur déconnexion:', error);
+      setAlertMsg({ type: 'error', text: 'Erreur lors de la déconnexion' });
+      setTimeout(() => setAlertMsg(null), 3000);
+    }
+  };
 
   // Trigger custom event to open Chatbot with selected product pre-filled
   const handleOrderClick = (productNom: string) => {
     const event = new CustomEvent('chat-order', { detail: { productNom } });
     window.dispatchEvent(event);
     
-    // Alert feedback
+    // Alert feedback in elegant Arabic
     setAlertMsg({
       type: 'success',
-      text: `Sarra a été informée ! Ouvrez le chat en bas à droite pour commander votre "${productNom}".`
+      text: `تم إرسال اختياركِ بنجاح! يرجى فتح نافذة الدردشة مع المستشارة "سارة" في الأسفل لإتمام طلب شراء "${productNom}" في ثوانٍ معدودة.`
     });
-    setTimeout(() => setAlertMsg(null), 6000);
+    setTimeout(() => setAlertMsg(null), 8000);
   };
 
-  // Administrator verification handlers
-  const handleAdminTabClick = () => {
-    if (isAdminAuthenticated) {
-      setActiveTab('admin');
-    } else {
-      setLoginError(null);
-      setEmailInput('samisami231182@gmail.com');
-      setPasswordInput('');
-      setShowAdminLoginModal(true);
-    }
-  };
-
-  const handleAdminLogin = (e: FormEvent) => {
-    e.preventDefault();
-    const correctEmail = 'samisami231182@gmail.com';
-    const correctPassword = 'sami2311';
-    if (emailInput.trim().toLowerCase() === correctEmail && passwordInput.trim() === correctPassword) {
-      setIsAdminAuthenticated(true);
-      setShowAdminLoginModal(false);
-      setActiveTab('admin');
-      setAlertMsg({
-        type: 'success',
-        text: lang === 'ar' ? 'تم تسجيل الدخول كمسؤول بنجاح' : 'Accès autorisé. Bienvenue au tableau de bord.'
-      });
-      setTimeout(() => setAlertMsg(null), 4000);
-    } else {
-      setLoginError(lang === 'ar' ? 'البريد الإلكتروني أو كلمة المرور خاطئة. حاول مرة أخرى.' : 'Email ou mot de passe incorrect. Accès refusé.');
-    }
-  };
-
-  const handleAdminLogout = () => {
-    setIsAdminAuthenticated(false);
-    setActiveTab('boutique');
-    setAlertMsg({
-      type: 'success',
-      text: lang === 'ar' ? 'تم تسجيل الخروج من لوحة التحكم' : 'Déconnexion réussie.'
+  // Trigger custom event to ask about an order
+  const handleAskSarraAboutOrder = (orderId: number) => {
+    const event = new CustomEvent('chat-order', { 
+      detail: { 
+        customPrompt: `أهلاً سارة، أرغب في الاستفسار عن حالة طلبي ذو الرقم المرجعي #${orderId}. هل يمكن مساعدتي؟` 
+      } 
     });
-    setTimeout(() => setAlertMsg(null), 4000);
-  };
-
-  const handleUpdateOrderStatus = async (orderId: string | number, newStatus: string) => {
-    try {
-      const res = await fetch(`http://localhost:5000/api/orders/${orderId}/status`, {
-        method: 'PUT',
-        headers: {
-          'Content-Type': 'application/json',
-        },
-        body: JSON.stringify({ status: newStatus }),
-      });
-      const data = await res.json();
-      if (data.success) {
-        // Update local orders state
-        setOrders(prev => prev.map(o => o.id === orderId ? { ...o, statut: newStatus } : o));
-        
-        // Live update trackedOrder if currently tracked
-        if (trackedOrder && String(trackedOrder.id) === String(orderId)) {
-          setTrackedOrder(prev => prev ? { ...prev, statut: newStatus } : null);
-        }
-        
-        setAlertMsg({
-          type: 'success',
-          text: lang === 'ar' ? `تم تحديث حالة الطلب إلى "${newStatus}"` : `Statut mis à jour en "${newStatus}" avec succès !`
-        });
-        setTimeout(() => setAlertMsg(null), 4000);
-      } else {
-        setAlertMsg({
-          type: 'error',
-          text: data.error || 'Erreur lors de la mise à jour.'
-        });
-        setTimeout(() => setAlertMsg(null), 4000);
-      }
-    } catch (err) {
-      console.error(err);
-      setAlertMsg({
-        type: 'error',
-        text: 'Erreur de connexion avec le serveur.'
-      });
-      setTimeout(() => setAlertMsg(null), 4000);
-    }
-  };
-
-  const getEstimatedDelivery = (createdAtString?: string, currentStatus?: string) => {
-    if (!createdAtString) {
-      return {
-        fr: "Prévue sous 24 à 48 heures",
-        ar: "متوقع خلال 24 إلى 48 ساعة"
-      };
-    }
+    window.dispatchEvent(event);
     
-    const createdDate = new Date(createdAtString);
-    const now = new Date();
-    const diffMs = now.getTime() - createdDate.getTime();
-    const diffHours = diffMs / (1000 * 60 * 60);
-
-    if (currentStatus === 'Livrée' || currentStatus === 'Livré') {
-      return {
-        fr: "Livré avec succès !",
-        ar: "تم التوصيل بنجاح!"
-      };
-    }
-
-    if (diffHours < 2) {
-      return {
-        fr: "Prévue sous 24 à 36 heures (En cours de traitement)",
-        ar: "متوقع خلال 24 إلى 36 ساعة (قيد المعالجة)"
-      };
-    } else if (diffHours < 12) {
-      return {
-        fr: "Prévue dans les prochaines 12 à 24 heures (En préparation)",
-        ar: "متوقع خلال الـ 12 إلى 24 ساعة القادمة (قيد التحضير)"
-      };
-    } else if (diffHours < 24) {
-      return {
-        fr: "Prévue aujourd'hui ou dans les prochaines heures (Prête à être expédiée)",
-        ar: "متوقع اليوم أو خلال الساعات القادمة (جاهزة للشحن)"
-      };
-    } else if (diffHours < 48) {
-      return {
-        fr: "Livraison imminente par notre partenaire de transport (Sous 24h)",
-        ar: "التسليم وشيك عبر شريك الشحن (خلال 24 ساعة)"
-      };
-    } else {
-      return {
-        fr: "Prévue sous 24 heures",
-        ar: "متوقع خلال 24 ساعة"
-      };
-    }
+    setAlertMsg({
+      type: 'success',
+      text: `تم إرسال مرجع الطلب #${orderId} إلى سارة. يرجى مراجعة نافذة الدردشة في الأسفل للتحدث معها.`
+    });
+    setTimeout(() => setAlertMsg(null), 8000);
   };
 
-  // Calculate stats
+  // Calculate statistics for Merchant Dashboard
   const totalRevenue = orders.reduce((sum, order) => {
-    // Basic extraction of price from order details if possible
-    // Defaulting to a simulated average or exact matching
-    return sum + 25.0; // Simulated average order value in DT
+    // Basic heuristics to calculate estimated total (defaulting to average of 15.000 TND per order if parsing fails)
+    let amount = 15.000;
+    if (order.details_produits) {
+      if (order.details_produits.includes("التين الشوكي") || order.details_produits.includes("Barbarie")) amount = 15.000;
+      if (order.details_produits.includes("الياسمين") || order.details_produits.includes("Jasmin")) amount = 24.500;
+      if (order.details_produits.includes("القهوة") || order.details_produits.includes("Café")) amount = 15.000;
+      if (order.details_produits.includes("طبلبة") || order.details_produits.includes("Teboulba")) amount = 15.000;
+      if (order.details_produits.includes("السدر") || order.details_produits.includes("Sidr")) amount = 15.000;
+    }
+    return sum + amount;
   }, 0);
 
-  // Theme color styling mappings
-  const themeBgMain = isNightMode ? 'bg-[#141E15]' : 'bg-[#F5F2EB]';
-  const themeBgWhite = isNightMode ? 'bg-[#1D2A1E]' : 'bg-white';
-  const themeBgLight = isNightMode ? 'bg-[#19241A]' : 'bg-[#FAF9F5]';
+  // Setup styling colors based on theme mode
+  const themeBgMain = isNightMode ? 'bg-[#141E15]' : 'bg-[#F9F7F2]';
+  const themeBgCard = isNightMode ? 'bg-[#1D2A1E]' : 'bg-white';
+  const themeBgBadge = isNightMode ? 'bg-[#253626]' : 'bg-[#E8E4DB]';
   const themeTextMain = isNightMode ? 'text-[#FAF9F5]' : 'text-[#2C3E2E]';
   const themeTextMuted = isNightMode ? 'text-[#A0A49B]' : 'text-[#5A5A40]';
-  const themeBorderMain = isNightMode ? 'border-[#FAF9F5]/10' : 'border-[#2C3E2E]/10';
-  const themeBorderLight = isNightMode ? 'border-[#FAF9F5]/5' : 'border-[#2C3E2E]/5';
+  const themeBorder = isNightMode ? 'border-[#FAF9F5]/10' : 'border-[#2C3E2E]/10';
 
   return (
     <div 
-      className={`min-h-screen ${themeBgMain} ${lang === 'ar' ? 'font-cairo' : 'font-sans'} ${themeTextMain} transition-all duration-300`} 
-      dir={lang === 'ar' ? 'rtl' : 'ltr'}
+      className={`min-h-screen ${themeBgMain} ${themeTextMain} font-sans transition-colors duration-500 overflow-x-hidden w-full`} 
+      dir="rtl"
     >
-      
-      {/* Alert Notice Banner */}
-      {alertMsg && (
-        <motion.div
-          initial={{ opacity: 0, y: -20 }}
-          animate={{ opacity: 1, y: 0 }}
-          exit={{ opacity: 0, y: -20 }}
-          className="fixed top-4 left-4 right-4 z-50 mx-auto max-w-lg rounded-xl bg-[#2C3E2E] p-4 text-[#F9F7F2] shadow-xl flex items-center justify-between border border-[#C18D5D]/20"
-        >
-          <div className="flex items-center space-x-2">
-            <Sparkles className="h-5 w-5 text-[#C18D5D] animate-pulse" />
-            <p className="text-xs font-medium tracking-wide">{alertMsg.text}</p>
-          </div>
-          <button onClick={() => setAlertMsg(null)} className="text-[#C18D5D] hover:text-[#F9F7F2] font-bold text-xs uppercase tracking-widest ml-3">
-            Fermer
-          </button>
-        </motion.div>
-      )}
+      {/* In-App Browser Banner */}
+      <InAppBrowserBanner isNightMode={isNightMode} />
 
-      {/* Top Brand bar */}
-      <header className={`sticky top-0 z-40 border-b transition-colors duration-300 ${themeBorderMain} ${isNightMode ? 'bg-[#141E15]/95' : 'bg-[#F5F2EB]/95'} backdrop-blur-md`}>
-        <div className="mx-auto grid grid-cols-1 md:grid-cols-3 items-center gap-4 px-6 py-5 sm:px-8 lg:px-12 max-w-7xl">
+      {/* Top Notification Banner */}
+      <div className="bg-[#2C3E2E] text-[#F9F7F2] py-2 px-4 text-center text-xs tracking-wider border-b border-[#C18D5D]/20">
+        <div className="max-w-7xl mx-auto flex items-center justify-center gap-2">
+          <Sparkles className="h-4.5 w-4.5 text-[#C18D5D] animate-pulse" />
+          <span>شحن مجاني لكافة الولايات التونسية للطلبات الأكثر من 60 د.ت والدفع نقداً عند الاستلام</span>
+        </div>
+      </div>
+
+      {/* Main Elegant Header */}
+      <header className={`sticky top-0 z-40 backdrop-blur-md ${isNightMode ? 'bg-[#141E15]/90' : 'bg-[#F9F7F2]/90'} border-b ${themeBorder} transition-colors duration-500 overflow-x-hidden`}>
+        <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 h-20 flex items-center justify-between w-full">
           
-          {/* Left: LA COLLECTION BIO */}
-          <div className="flex justify-start items-center hidden md:flex">
-            <a href="#catalogue" className={`text-xs uppercase tracking-[0.3em] font-bold transition-colors cursor-pointer ${themeTextMuted} hover:${themeTextMain}`}>
-              {lang === 'ar' ? 'المجموعة العضوية' : 'La Collection Bio'}
-            </a>
-          </div>
-
-          {/* Center: Logo */}
-          <div className="flex flex-col items-center text-center">
-            <div className="flex items-center gap-2.5">
-              <img 
-                src="/watermarked_img_10592767577053482886.png" 
-                alt="Pure Glow MH Logo" 
-                className="h-10 w-auto object-contain"
-                onError={(e) => {
-                  e.currentTarget.style.display = 'none';
-                }}
-              />
-              <span className={`font-serif italic text-2xl sm:text-3xl tracking-tighter ${themeTextMain} font-semibold transition-colors duration-300`}>
-                Pure Glow MH
-              </span>
+          {/* Logo & Slogan */}
+          <div className="flex items-center gap-2 sm:gap-3 flex-shrink-0">
+            <div className="h-10 w-10 rounded-full bg-[#2C3E2E] flex items-center justify-center text-[#C18D5D] border border-[#C18D5D]/20">
+              <Leaf className="h-5 w-5" />
             </div>
-            <span className="text-[9px] uppercase tracking-[0.3em] text-[#C18D5D] font-bold mt-1">
-              {lang === 'ar' ? '- مستحضرات تجميل طبيعية -' : '- COSMÉTIQUES NATURELS -'}
-            </span>
+            <div className="hidden sm:block">
+              <span className="font-display text-lg sm:text-xl font-bold text-[#C18D5D] tracking-wide">بيور غلو MH</span>
+              <p className="text-[9px] uppercase tracking-wider text-emerald-700 font-semibold block">مستحضرات تجميل تونسية عضوية 🌸</p>
+            </div>
+            <div className="sm:hidden">
+              <span className="font-display text-base font-bold text-[#C18D5D] tracking-wide">بيور غلو MH</span>
+            </div>
           </div>
 
-          {/* Right: Buttons BOUTIQUE and COMMANDES + Language Selector */}
-          <div className="flex flex-wrap gap-3 justify-center md:justify-end items-center">
-            <nav className={`flex space-x-1 border transition-colors duration-300 ${themeBorderMain} rounded-full ${isNightMode ? 'bg-[#1D2A1E]/85' : 'bg-white/60'} p-1 shadow-xs`}>
-              <button
-                onClick={() => setActiveTab('boutique')}
-                className={`rounded-full px-4 sm:px-5 py-1.5 text-[10px] uppercase tracking-wider font-bold transition-all cursor-pointer ${
-                  activeTab === 'boutique' 
-                    ? (isNightMode ? 'bg-[#C18D5D] text-white shadow-xs' : 'bg-[#2C3E2E] text-[#F9F7F2] shadow-xs') 
-                    : `${themeTextMuted} hover:${themeTextMain}`
-                }`}
-              >
-                {lang === 'ar' ? 'المتجر' : 'Boutique'}
-              </button>
-              <button
-                onClick={() => setActiveTab('suivi')}
-                className={`rounded-full px-4 sm:px-5 py-1.5 text-[10px] uppercase tracking-wider font-bold transition-all flex items-center space-x-1.5 cursor-pointer ${
-                  activeTab === 'suivi' 
-                    ? 'bg-[#8F6A48] text-white shadow-xs' 
-                    : `${themeTextMuted} hover:${themeTextMain}`
-                }`}
-              >
-                <Truck className="h-3 w-3" />
-                <span>{lang === 'ar' ? 'تتبع' : 'Suivi'}</span>
-              </button>
-              <button
-                onClick={handleAdminTabClick}
-                className={`rounded-full px-4 sm:px-5 py-1.5 text-[10px] uppercase tracking-wider font-bold transition-all flex items-center space-x-1.5 cursor-pointer ${
-                  activeTab === 'admin' 
-                    ? 'bg-[#C18D5D] text-white shadow-xs' 
-                    : `${themeTextMuted} hover:${themeTextMain}`
-                }`}
-              >
-                <ClipboardList className="h-3 w-3" />
-                <span>{lang === 'ar' ? 'الطلبات' : 'Commandes'}</span>
-                {orders.length > 0 && (
-                  <span className={`ml-1 rounded-full px-1.5 py-0.2 text-[8px] font-bold ${isNightMode ? 'bg-emerald-900 text-[#FAF9F5]' : 'bg-[#2C3E2E] text-[#F9F7F2]'}`}>
-                    {orders.length}
+          {/* Navigation tabs in Arabic - Responsive */}
+          <nav className="hidden md:flex items-center gap-1 bg-[#FAF9F5]/20 p-1 rounded-sm border border-emerald-900/5 flex-shrink-0">
+            <button
+              onClick={() => setActiveTab('boutique')}
+              className={`px-4 py-3 min-h-[48px] min-w-[44px] text-xs sm:text-sm font-medium transition-all cursor-pointer rounded-sm flex items-center justify-center ${
+                activeTab === 'boutique' 
+                  ? 'bg-[#2C3E2E] text-white shadow-xs' 
+                  : `${themeTextMuted} hover:text-[#C18D5D]`
+              }`}
+            >
+              المتجر العضوي
+            </button>
+            <button
+              onClick={() => setActiveTab('suivi')}
+              className={`px-4 py-3 min-h-[48px] min-w-[44px] text-xs sm:text-sm font-medium transition-all cursor-pointer rounded-sm flex items-center justify-center ${
+                activeTab === 'suivi' 
+                  ? 'bg-[#2C3E2E] text-white shadow-xs' 
+                  : `${themeTextMuted} hover:text-[#C18D5D]`
+              }`}
+            >
+              تتبع طلبيتك
+            </button>
+            <button
+              onClick={() => {
+                setActiveTab('admin');
+                setNewOrdersCount(0);
+              }}
+              className={`px-4 py-3 min-h-[48px] min-w-[44px] text-xs sm:text-sm font-medium transition-all cursor-pointer rounded-sm flex items-center justify-center gap-1.5 relative ${
+                activeTab === 'admin' 
+                  ? 'bg-[#2C3E2E] text-white shadow-xs' 
+                  : `${themeTextMuted} hover:text-[#C18D5D]`
+              }`}
+            >
+              <span>لوحة التحكم</span>
+              {newOrdersCount > 0 && (
+                <span className="relative flex h-2 w-2">
+                  <span className="animate-ping absolute inline-flex h-full w-full rounded-full bg-[#C18D5D] opacity-75"></span>
+                  <span className="relative inline-flex rounded-full h-2 w-2 bg-[#C18D5D]"></span>
+                </span>
+              )}
+            </button>
+          </nav>
+
+          {/* Mobile Navigation Dropdown */}
+          <div className="md:hidden relative">
+            <select
+              value={activeTab}
+              onChange={(e) => {
+                setActiveTab(e.target.value as any);
+                if (e.target.value === 'admin') setNewOrdersCount(0);
+              }}
+              className={`px-3 py-2 min-h-[44px] min-w-[44px] text-xs font-medium rounded-sm border ${themeBorder} ${themeBgCard} ${themeTextMain} cursor-pointer focus:outline-none focus:ring-2 focus:ring-[#C18D5D]`}
+            >
+              <option value="boutique">المتجر العضوي</option>
+              <option value="suivi">تتبع طلبيتك</option>
+              <option value="admin">لوحة التحكم</option>
+            </select>
+          </div>
+
+          {/* Theme & Utility Actions */}
+          <div className="flex items-center gap-2 sm:gap-3 flex-shrink-0">
+            {/* Shopping Cart Button */}
+            <button
+              onClick={() => setIsCartOpen(!isCartOpen)}
+              className={`p-2.5 sm:p-2.5 min-h-[44px] min-w-[44px] rounded-full border ${themeBorder} cursor-pointer hover:bg-[#C18D5D]/10 transition-colors relative`}
+              title="عرض سلة المشتريات"
+              id="header-cart-btn"
+            >
+              <ShoppingBag className="h-4.5 w-4.5 text-[#2C3E2E] dark:text-[#FAF9F5]" />
+              {cart.length > 0 && (
+                <span className="absolute -top-1 -right-1 flex h-5 w-5">
+                  <span className="animate-ping absolute inline-flex h-full w-full rounded-full bg-amber-400 opacity-75"></span>
+                  <span className="relative inline-flex rounded-full h-5 w-5 bg-[#C18D5D] text-[10px] font-bold text-white items-center justify-center">
+                    {cart.reduce((sum, item) => sum + item.quantity, 0)}
                   </span>
-                )}
-              </button>
-            </nav>
+                </span>
+              )}
+            </button>
 
-            {/* Language Selector FR | ع */}
-            <div className={`flex items-center transition-colors duration-300 ${isNightMode ? 'bg-[#1D2A1E]/85' : 'bg-white/60'} border ${themeBorderMain} rounded-full px-2.5 py-1 text-[10px] font-bold shadow-xs`}>
-              <button 
-                onClick={() => setLang('fr')} 
-                className={`px-1.5 py-0.5 rounded-full transition-colors cursor-pointer ${lang === 'fr' ? 'text-[#C18D5D]' : `${themeTextMuted} hover:${themeTextMain}`}`}
-                title="Français"
-              >
-                FR
-              </button>
-              <span className={`transition-colors duration-300 ${isNightMode ? 'text-[#FAF9F5]/20' : 'text-[#2C3E2E]/20'} font-light select-none mx-0.5`}>|</span>
-              <button 
-                onClick={() => setLang('ar')} 
-                className={`px-1.5 py-0.5 rounded-full transition-colors cursor-pointer font-cairo text-xs leading-none ${lang === 'ar' ? 'text-[#C18D5D] font-bold' : `${themeTextMuted} hover:${themeTextMain}`}`}
-                title="العربية"
-              >
-                ع
-              </button>
-            </div>
-
-            {/* Theme Toggle Button */}
             <button
               onClick={() => setIsNightMode(!isNightMode)}
-              className={`flex items-center justify-center p-2 rounded-full border transition-all duration-300 ${themeBorderMain} ${isNightMode ? 'bg-[#1D2A1E]/85 text-[#FAF9F5]' : 'bg-white/60 text-[#2C3E2E]'} hover:text-[#C18D5D] hover:border-[#C18D5D] shadow-xs cursor-pointer`}
-              title={isNightMode ? (lang === 'ar' ? 'وضع النهار' : 'Mode Jour') : (lang === 'ar' ? 'وضع الليل' : 'Mode Nuit')}
+              className={`p-2 sm:p-2 min-h-[44px] min-w-[44px] rounded-full border ${themeBorder} cursor-pointer hover:bg-[#C18D5D]/10 transition-colors`}
+              title="تغيير مظهر الصفحة"
             >
-              {isNightMode ? <Sun className="h-3.5 w-3.5 text-[#C18D5D]" /> : <Moon className="h-3.5 w-3.5" />}
+              {isNightMode ? (
+                <Sun className="h-4 w-4 text-amber-400" />
+              ) : (
+                <Moon className="h-4 w-4 text-[#2C3E2E]" />
+              )}
             </button>
+            
+            <div className="hidden md:flex items-center gap-1 text-[11px] text-emerald-800 font-bold bg-emerald-100/40 px-3 py-1.5 rounded-sm">
+              <span className="relative flex h-2 w-2">
+                <span className="animate-ping absolute inline-flex h-full w-full rounded-full bg-emerald-400 opacity-75"></span>
+                <span className="relative inline-flex rounded-full h-2 w-2 bg-emerald-500"></span>
+              </span>
+              <span>المهدية، تونس</span>
+            </div>
           </div>
         </div>
       </header>
 
-      {activeTab === 'boutique' ? (
-        <>
-          {/* Hero Section */}
-          <section className={`relative overflow-hidden ${themeBgMain} border-b ${themeBorderLight} py-16 lg:py-24 transition-colors duration-300`}>
-            <div className="mx-auto max-w-7xl px-6 sm:px-8 lg:px-12">
-              <div className="grid grid-cols-1 gap-12 lg:grid-cols-12 lg:items-start">
+      {/* Floating Active Order Notification Alert Box */}
+      <AnimatePresence>
+        {alertMsg && (
+          <motion.div
+            initial={{ opacity: 0, y: -40 }}
+            animate={{ opacity: 1, y: 0 }}
+            exit={{ opacity: 0, y: -40 }}
+            className="fixed top-24 left-4 right-4 md:left-auto md:right-6 md:w-[450px] z-50 bg-[#2C3E2E] text-[#F9F7F2] p-4 rounded-sm shadow-2xl border border-[#C18D5D]/40"
+          >
+            <div className="flex items-start gap-3">
+              <div className="p-1 rounded bg-[#C18D5D]/20 text-[#C18D5D]">
+                <Sparkles className="h-5 w-5" />
+              </div>
+              <div className="flex-1">
+                <h4 className="font-display font-bold text-xs text-[#C18D5D] mb-1">خطوة رائعة نحو الجمال الطبيعي!</h4>
+                <p className="text-xs leading-relaxed text-[#E8E4DB]">{alertMsg.text}</p>
+              </div>
+              <button 
+                onClick={() => setAlertMsg(null)}
+                className="text-[#F9F7F2]/60 hover:text-white cursor-pointer"
+              >
+                <X className="h-4 w-4" />
+              </button>
+            </div>
+          </motion.div>
+        )}
+      </AnimatePresence>
+
+      {/* Active Tab Views Switcher */}
+      <main className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-8">
+        
+        {/* VIEW 1: BOUTIQUE */}
+        {activeTab === 'boutique' && (
+          <div>
+            
+            {/* Elegant Hero Section with Arch Design */}
+            <section className="mb-20 grid grid-cols-1 lg:grid-cols-12 gap-12 items-center">
+              <div className="lg:col-span-7 space-y-6 text-right">
+                <div className="inline-flex items-center gap-2 px-3 py-1 bg-[#C18D5D]/10 text-[#C18D5D] border border-[#C18D5D]/15 rounded-sm text-xs font-semibold">
+                  <Award className="h-3.5 w-3.5" />
+                  <span>مستحضرات تجميل عضوية نقية 100% مصنوعة على البارد</span>
+                </div>
                 
-                {/* Left Column: Archetype Arche (Editorial Layout) */}
-                <div className="lg:col-span-5 flex flex-col items-center justify-center">
-                  {/* Arche with double contour: Outer crème/beige border, inner thick pure white border */}
-                  <div className={`relative w-full max-w-[340px] sm:max-w-[420px] aspect-[3/4] rounded-t-full p-1 ${themeBgMain} border ${isNightMode ? 'border-emerald-950' : 'border-[#E2DDD3]'} shadow-[0_16px_40px_rgba(44,62,46,0.06)] flex items-center justify-center transition-colors duration-300`}>
-                    <div className={`w-full h-full rounded-t-full ${themeBgWhite} p-5 sm:p-6 flex items-center justify-center relative overflow-hidden transition-colors duration-300`}>
-                      {/* Image centered directly inside the Arch */}
-                      <div className="w-full h-full rounded-t-full overflow-hidden relative bg-[#FAF9F5] flex items-center justify-center">
-                        <img 
-                          src={imageTraiterSidre} 
-                          alt={lang === 'ar' ? 'صابون السدر والعسل الطبيعي الممتاز' : 'Savon Artisanal au Sidr et au Miel'} 
-                          className="absolute inset-0 h-full w-full object-cover transition-transform duration-700 hover:scale-105"
+                <h1 className="font-display text-2xl sm:text-4xl md:text-5xl font-extrabold tracking-tight leading-tight text-[#2C3E2E] dark:text-[#FAF9F5]">
+                  سحر الطبيعة التونسية ونقاء <br className="hidden md:block"/>
+                  <span className="text-[#C18D5D]">العناية الفاخرة بالبشرة</span>
+                </h1>
+                
+                <p className="text-sm sm:text-base leading-relaxed text-slate-600 dark:text-slate-300 max-w-2xl">
+                  اكتشفي مجموعتنا الاستثنائية من الصابون الطبيعي الفاخر والكريمات المغذية المصنوعة يدوياً بكل فخر في المهدية بالساحل التونسي. نعتمد أرقى تقنيات العصر والتصبين على البارد لنحفظ لكِ الأسرار العلاجية لزيت التين الشوكي، زيت الزيتون البكر، وعسل الجبل النقي لجمال يدوم وإشراق طبيعي لا يضاهى.
+                </p>
+
+                <div className="flex flex-wrap gap-4 pt-4 justify-start">
+                  <a 
+                    href="#catalog-view"
+                    className="px-6 py-3.5 bg-[#2C3E2E] hover:bg-[#C18D5D] text-white font-medium text-xs sm:text-sm rounded-sm transition-all duration-300 shadow-md flex items-center gap-2 cursor-pointer"
+                  >
+                    <ShoppingBag className="h-4.5 w-4.5" />
+                    <span>تصفحي المنتجات الطبيعية</span>
+                  </a>
+                  
+                  <button 
+                    onClick={() => {
+                      const event = new CustomEvent('chat-order', { detail: { customPrompt: "مرحباً سارة، أريد استشارتك في اختيار الصابون المناسب لنوع بشرتي." } });
+                      window.dispatchEvent(event);
+                    }}
+                    className="px-6 py-3.5 bg-transparent hover:bg-[#2C3E2E]/5 border border-[#2C3E2E] dark:border-[#FAF9F5] text-[#2C3E2E] dark:text-[#FAF9F5] hover:text-emerald-950 font-medium text-xs sm:text-sm rounded-sm transition-all duration-300 flex items-center gap-2 cursor-pointer"
+                  >
+                    <MessageSquare className="h-4.5 w-4.5 text-[#C18D5D]" />
+                    <span>استشارة مجانية مع سارة (IA)</span>
+                  </button>
+                </div>
+
+                {/* Hero Trust Indicators */}
+                <div className="grid grid-cols-3 gap-4 pt-8 border-t border-slate-200/50 dark:border-slate-800/50">
+                  <div>
+                    <span className="font-display text-lg sm:text-xl font-bold text-[#C18D5D]">طبيعي 100%</span>
+                    <p className="text-[10px] text-slate-500">خالٍ تماماً من البارابين والسيليكون</p>
+                  </div>
+                  <div>
+                    <span className="font-display text-lg sm:text-xl font-bold text-[#C18D5D]">تصبين على البارد</span>
+                    <p className="text-[10px] text-slate-500">للحفاظ على الفيتامينات والغليسرين</p>
+                  </div>
+                  <div>
+                    <span className="font-display text-lg sm:text-xl font-bold text-[#C18D5D]">صنع يدوي تونسي</span>
+                    <p className="text-[10px] text-slate-500">أصالة المهدية وتقاليد الساحل العريقة</p>
+                  </div>
+                </div>
+              </div>
+
+              {/* Editorial Arch Design Photo */}
+              <div className="lg:col-span-5 relative">
+                <div className="aspect-[4/5] rounded-t-full overflow-hidden border-8 border-white dark:border-slate-800 shadow-2xl relative bg-slate-100">
+                  <LazyImage 
+                    src="/savon_sidr_miel.jpg" 
+                    alt="صابون السدر وعسل طبلبة الطبيعي الممتاز - بيور غلو"
+                    className="w-full h-full object-cover hover:scale-105 transition-transform duration-700 rounded-t-full"
+                  />
+                  <div className="absolute inset-0 bg-gradient-to-t from-black/50 via-transparent to-transparent flex flex-col justify-end p-6 text-right">
+                    <span className="text-[#C18D5D] text-xs font-semibold tracking-wider uppercase">المنتج الأكثر طلباً</span>
+                    <h3 className="font-display text-[#FAF9F5] text-lg font-bold">صابون السدر وعسل طبلبة الطبيعي الممتاز</h3>
+                    <p className="text-white/85 text-xs">مطهر، مغذٍ ومرطب فائق للبشرة الحساسة من خيرات تونس العريقة</p>
+                  </div>
+                </div>
+                {/* Decorative Elements */}
+                <div className="absolute -bottom-6 -left-6 h-32 w-32 rounded-full border-4 border-[#C18D5D]/20 animate-pulse hidden md:block" />
+                <div className="absolute -top-6 -right-6 h-20 w-20 bg-[#C18D5D]/10 rounded-sm blur-xl" />
+              </div>
+            </section>
+
+            {/* Quality Charter / Why Choose Us */}
+            <section className="py-12 px-6 rounded-2xl bg-emerald-950 text-[#F9F7F2] mb-20 relative overflow-hidden shadow-xl">
+              <div className="absolute top-0 right-0 h-64 w-64 bg-[#C18D5D]/5 rounded-full blur-3xl" />
+              
+              <div className="max-w-3xl mx-auto text-center space-y-4 mb-12 relative z-10">
+                <span className="text-[#C18D5D] text-xs font-bold tracking-wider uppercase">ميثاق الجودة والنقاء</span>
+                <h2 className="font-display text-2xl sm:text-3xl font-bold">لماذا تختار مستحضراتنا الطبيعية؟</h2>
+                <p className="text-xs sm:text-sm text-[#E8E4DB]/85 leading-relaxed">
+                  نحن لا نصنع مستحضرات تجميل عادية؛ نحن نصنع قطعاً فنية علاجية مستخلصة من أرض تونس الطيبة تعتني بنضارة بشرتكِ وصحة عائلتكِ.
+                </p>
+              </div>
+
+              <div className="grid grid-cols-1 md:grid-cols-4 gap-8 relative z-10 text-right">
+                <div className="space-y-2 border-r border-[#C18D5D]/20 pr-4">
+                  <div className="h-9 w-9 rounded bg-[#C18D5D]/10 flex items-center justify-center text-[#C18D5D]">
+                    <Award className="h-5 w-5" />
+                  </div>
+                  <h4 className="font-display text-sm font-bold text-white">زيت التين الشوكي النقي</h4>
+                  <p className="text-xs text-[#E8E4DB]/80 leading-relaxed">أقوى مضاد أكسدة طبيعي في العالم لشد خلايا البشرة ومكافحة التجاعيد وعلامات الجفاف.</p>
+                </div>
+                
+                <div className="space-y-2 border-r border-[#C18D5D]/20 pr-4">
+                  <div className="h-9 w-9 rounded bg-[#C18D5D]/10 flex items-center justify-center text-[#C18D5D]">
+                    <Leaf className="h-5 w-5" />
+                  </div>
+                  <h4 className="font-display text-sm font-bold text-white">0% كيماويات ضارة</h4>
+                  <p className="text-xs text-[#E8E4DB]/80 leading-relaxed">خالٍ تماماً من الكبريتات، الملونات الاصطناعية، المواد الرغوية السامة، والمثبتات الكيميائية.</p>
+                </div>
+
+                <div className="space-y-2 border-r border-[#C18D5D]/20 pr-4">
+                  <div className="h-9 w-9 rounded bg-[#C18D5D]/10 flex items-center justify-center text-[#C18D5D]">
+                    <Sparkles className="h-5 w-5" />
+                  </div>
+                  <h4 className="font-display text-sm font-bold text-white">روائح تونسية أصيلة</h4>
+                  <p className="text-xs text-[#E8E4DB]/80 leading-relaxed">عطور طبيعية دافئة ومقطرة كعطر ياسمين الحمامات الساحر ومياه الزهور الطبيعية الفواحة.</p>
+                </div>
+
+                <div className="space-y-2 border-r border-[#C18D5D]/20 pr-4">
+                  <div className="h-9 w-9 rounded bg-[#C18D5D]/10 flex items-center justify-center text-[#C18D5D]">
+                    <ShieldCheck className="h-5 w-5" />
+                  </div>
+                  <h4 className="font-display text-sm font-bold text-white">دعم الحرفيات التونسيات</h4>
+                  <p className="text-xs text-[#E8E4DB]/80 leading-relaxed">نقتني زيت الزيتون والأوراق العضوية مباشرة من النساء المزارعات والتعاونيات الفلاحية بالساحل.</p>
+                </div>
+              </div>
+            </section>
+
+            {/* Catalogue Section Header */}
+            <div id="catalog-view" className="text-right space-y-3 mb-10">
+              <span className="text-[#C18D5D] text-xs font-bold tracking-wider uppercase block">تشكيلة العناية المتميزة</span>
+              <h2 className="font-display text-2xl sm:text-3xl font-extrabold text-[#2C3E2E] dark:text-[#FAF9F5]">
+                أحدث إبداعاتنا الطبيعية العضوية
+              </h2>
+              <p className="text-xs sm:text-sm text-slate-500 max-w-2xl">
+                اضغط على <span className="font-semibold text-[#C18D5D]">"تفاصيل المكونات"</span> لمعرفة الفوائد الكاملة لكل مستحضر، أو اضغط على <span className="font-semibold text-emerald-800">"طلب سريع عبر سارة"</span> للتحدث فوراً مع مستشارتنا الذكية وإرسال طلبيتك وعنوانك.
+              </p>
+            </div>
+
+            {/* Product Cards Bento Grid Loading */}
+            {loadingProducts ? (
+              <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-8">
+                {[1, 2, 3, 4, 5].map((idx) => (
+                  <div key={idx} className="animate-pulse rounded-lg bg-[#E8E4DB]/20 h-96 border border-[#2C3E2E]/5" />
+                ))}
+              </div>
+            ) : products.length === 0 ? (
+              <div className="text-center py-16 bg-[#E8E4DB]/15 rounded-lg border border-dashed border-[#2C3E2E]/25">
+                <Leaf className="h-10 w-10 text-[#C18D5D] mx-auto mb-3 animate-bounce" />
+                <h3 className="font-display font-bold text-base">لا توجد منتجات متوفرة حالياً في المتجر</h3>
+                <p className="text-xs text-slate-500 mt-1">يرجى التأكد من تشغيل الخادم وتحديث الصفحة لمزامنة المنتجات.</p>
+              </div>
+            ) : (
+              <motion.div 
+                variants={productContainerVariants}
+                initial="hidden"
+                animate="visible"
+                className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-8 content-visibility-auto"
+              >
+                {products.map((p) => {
+                  const cardTheme = getProductTheme(p.nom);
+                  return (
+                    <motion.div
+                      key={p.id}
+                      variants={productCardVariants}
+                      className={`rounded-2xl overflow-hidden ${cardTheme.bg} border-2 ${cardTheme.border} shadow-md hover:shadow-2xl transition-all duration-300 flex flex-col justify-between group transform hover:-translate-y-1`}
+                    >
+                    
+                    {/* Card Image Area with brass/gold golden plate */}
+                    <div className="p-4 relative">
+                      <div className="h-68 w-full overflow-hidden relative rounded-xl shadow-lg border border-[#E8E4DB]/80 dark:border-slate-800/80 bg-white/50 dark:bg-slate-900/40 group-hover:shadow-xl transition-all duration-300">
+                        {/* Left-top/Right-top Ingredient Badge */}
+                        <div className={`absolute top-3 right-3 z-10 px-3 py-1 rounded-full text-[10px] font-bold tracking-wide border shadow-xs ${cardTheme.accentBg} backdrop-blur-md`}>
+                          {cardTheme.badgeLabel}
+                        </div>
+
+                        {/* Gold Packaging Ribbon & Premium Brand Round Label "MH Pure Glow Natural Co." */}
+                        <div className="absolute top-2 left-3 z-20 flex flex-col items-center">
+                          {/* Hanging Golden Ribbon */}
+                          <div className="w-1.5 h-6 bg-gradient-to-b from-[#bf953f] via-[#fcf6ba] to-[#b38728] shadow-sm"></div>
+                          {/* Circular White & Gold Seal */}
+                          <div className="w-11 h-11 rounded-full bg-white dark:bg-slate-900 border-2 border-[#bf953f] shadow-[0_3px_8px_rgba(180,140,40,0.25)] flex flex-col items-center justify-center select-none text-center transform hover:scale-105 transition-transform duration-300">
+                            <span className="text-[6px] text-[#bf953f] font-bold tracking-tight leading-none">MH</span>
+                            <span className="text-[4px] text-slate-800 dark:text-slate-200 font-extrabold uppercase leading-none mt-0.5 scale-90">Pure Glow</span>
+                            <span className="text-[3px] text-[#bf953f] font-semibold leading-none mt-0.5 scale-90">Natural Co.</span>
+                          </div>
+                        </div>
+
+                        {/* BRASS GOLDEN METALLIC PLAQUE on the left bottom */}
+                        <div className="absolute bottom-3 left-3 z-10 bg-gradient-to-r from-[#bf953f] via-[#fcf6ba] to-[#b38728] text-[#1c1404] text-xs font-extrabold px-3 py-1.5 rounded-md shadow-[0_4px_8px_rgba(0,0,0,0.25)] border border-[#8a6d29]/40 flex items-center justify-center gap-1 font-display tracking-tight hover:scale-105 transition-transform duration-300 select-none">
+                          <span className="text-[9px] font-bold opacity-85">DT</span>
+                          <span className="text-sm font-black">{p.prix.toFixed(3)}</span>
+                        </div>
+
+                        {/* TRANSLUCENT INNER BOTANICAL TEXTURE BANNER at the bottom of the image area */}
+                        <div className="absolute bottom-3 right-3 left-24 z-10 bg-white/70 dark:bg-slate-900/80 backdrop-blur-sm px-2.5 py-1.5 rounded-lg border border-white/40 dark:border-slate-800/40 text-right shadow-xs">
+                          <p className="text-[9px] text-slate-800 dark:text-slate-100 font-bold leading-tight flex items-center justify-end gap-1">
+                            <span className="w-1.5 h-1.5 rounded-full bg-amber-500 animate-pulse"></span>
+                            <span>{cardTheme.embeddedLabel}</span>
+                          </p>
+                        </div>
+
+                        <LazyImage 
+                          src={p.image_url} 
+                          alt={p.nom} 
+                          className="w-full h-full object-cover group-hover:scale-105 transition-transform duration-700"
                           referrerPolicy="no-referrer"
                         />
+                        <div className="absolute inset-0 bg-black/5 group-hover:bg-transparent transition-colors duration-300" />
                       </div>
                     </div>
-                  </div>
-                  
-                  {/* Editorial Title below the Arch */}
-                  <div className="text-center mt-6">
-                    {lang === 'ar' ? (
-                      <p className="font-amiri text-xl sm:text-2xl font-bold tracking-wide text-[#2C3E2E] leading-relaxed">
-                        مستحضرات تجميل طبيعية<br />
-                        صنع يدوي في المهدية
-                      </p>
-                    ) : (
-                      <p className="font-serif text-lg sm:text-xl font-medium tracking-wide text-[#2C3E2E] leading-relaxed">
-                        Cosmétiques Naturels<br />
-                        Fait Main à Mahdia
-                      </p>
-                    )}
-                  </div>
-                </div>
 
-                {/* Right Content Column */}
-                <div className={`lg:col-span-7 space-y-8 lg:ps-6 pt-2 lg:pt-4 ${lang === 'ar' ? 'text-right' : 'text-left'}`}>
-                  <div className="space-y-4">
-                    <h1 className={`font-serif text-5xl sm:text-6xl lg:text-7xl leading-[1.1] tracking-tight ${lang === 'ar' ? 'font-amiri' : ''}`}>
-                      {lang === 'ar' ? (
-                        <>
-                          <span className={`font-bold ${themeTextMain}`}>فخامة</span> <br /> 
-                          <span className="italic font-light text-[#C18D5D]">العناية الطبيعية</span>
-                        </>
-                      ) : (
-                        <>
-                          <span className={`font-bold ${themeTextMain}`}>La Douceur</span> <br /> 
-                          <span className="italic font-light text-[#C18D5D]">du Terroir</span>
-                        </>
-                      )}
-                    </h1>
-                  </div>
-                  
-                  <p className={`max-w-xl text-base sm:text-lg leading-relaxed ${themeTextMuted} ${lang === 'ar' ? 'font-cairo leading-loose text-justify' : ''}`}>
-                    {lang === 'ar' ? (
-                      "اكتشفوا سحر الطبيعة التونسية مع صابوننا التقليدي المصنوع على البارد وكريماتنا المرطبة الفائقة. تركيباتنا الطبيعية الغنية تمزج بين نقاء زيت الزيتون البكر من بساتيننا الممتدة، ولمسة زيت اللوز الحلو وزيت الأرغان المغذي، لتمنح بشرتكم أسرار الجمال الطبيعي الفاخر بنفحات ياسمين الحمامات الزكية."
-                    ) : (
-                      "Découvrez nos savons traditionnels de Thapsus saponifiés à froid et nos crèmes hydratantes onctueuses. Formulés avec l'authentique huile de pépins de figue de barbarie tunisienne, l'huile d'olive de nos vergers et les secrets de beauté parfumés au jasmin de Hammamet."
-                    )}
-                  </p>
-
-                  <div className="flex flex-col sm:flex-row gap-4 pt-4">
-                    <a
-                      href="#catalogue"
-                      className={`inline-flex items-center justify-center rounded-sm transition-colors shadow-md cursor-pointer ${
-                        isNightMode 
-                          ? 'bg-[#C18D5D] text-white hover:bg-[#b07d4e]' 
-                          : 'bg-[#2C3E2E] text-[#F9F7F2] hover:bg-[#C18D5D]'
-                      } px-8 py-3.5 text-xs uppercase tracking-widest font-bold ${lang === 'ar' ? 'font-cairo' : ''}`}
-                    >
-                      {lang === 'ar' ? 'تصفح الكتالوج' : 'EXPLORER LE CATALOGUE'}
-                      <ChevronRight className={`h-4 w-4 transition-transform ${lang === 'ar' ? 'rotate-180 me-2' : 'ms-2'}`} />
-                    </a>
-                    <button
-                      onClick={() => {
-                        const event = new CustomEvent('chat-order', { detail: {} });
-                        window.dispatchEvent(event);
-                      }}
-                      className={`inline-flex items-center justify-center rounded-sm transition-colors cursor-pointer border ${
-                        isNightMode 
-                          ? 'bg-[#1D2A1E] border-[#FAF9F5]/20 text-[#FAF9F5] hover:bg-[#19241A] hover:border-[#FAF9F5]/30' 
-                          : 'bg-white border-[#2C3E2E]/20 text-[#2C3E2E] hover:bg-[#FAF9F5] hover:border-[#2C3E2E]'
-                      } px-8 py-3.5 text-xs uppercase tracking-widest font-bold ${lang === 'ar' ? 'font-cairo' : ''}`}
-                    >
-                      <MessageSquare className={`h-4 w-4 text-[#C18D5D] ${lang === 'ar' ? 'ml-2' : 'mr-2'}`} />
-                      {lang === 'ar' ? 'تحدث مع سارة' : 'PARLER À SARRA'}
-                    </button>
-                  </div>
-
-                  {/* Trust Badges in refined theme grid */}
-                  <div className={`grid grid-cols-1 sm:grid-cols-3 gap-6 pt-8 border-t ${themeBorderMain}`}>
-                    <div className="space-y-1">
-                      <div className="flex items-center gap-2 text-[#C18D5D]">
-                        <Tooltip content={
-                          lang === 'ar' 
-                            ? 'نستخدم حصرياً زيوتاً نباتية معصورة على البارد ومستخلصات نقية طبيعية 100٪ بدون إضافات كيميائية.' 
-                            : 'Nous utilisons exclusivement des huiles végétales de première pression à froid et des hydrolats purs, sans additifs chimiques.'
-                        }>
-                          <span className="flex items-center gap-2 cursor-help">
-                            <Leaf className="h-4 w-4 shrink-0 hover:scale-110 transition-transform" />
-                            <span className={`text-xs uppercase tracking-wider font-bold ${lang === 'ar' ? 'font-cairo' : ''}`}>
-                              {lang === 'ar' ? 'المكونات' : 'INGRÉDIENTS'}
-                            </span>
-                          </span>
-                        </Tooltip>
+                    {/* Card Body Details */}
+                    <div className="px-5 pb-5 flex-1 flex flex-col justify-between space-y-4">
+                      <div className="space-y-1.5">
+                        <h3 className="font-display font-bold text-base leading-snug group-hover:text-[#C18D5D] transition-colors text-[#2C3E2E] dark:text-[#FAF9F5]">
+                          {p.nom}
+                        </h3>
+                        <p className="text-xs text-slate-500 dark:text-slate-400 line-clamp-2 leading-relaxed">
+                          {p.description}
+                        </p>
                       </div>
-                      <p className={`text-xs ${themeTextMuted} ${lang === 'ar' ? 'font-cairo' : ''}`}>
-                        {lang === 'ar' ? '100% طبيعي وعضوي' : '100% Organique'}
-                      </p>
-                    </div>
-                    <div className="space-y-1">
-                      <div className="flex items-center gap-2 text-[#C18D5D]">
-                        <Tooltip content={
-                          lang === 'ar' 
-                            ? 'كل منتج مصنوع يدوياً في المهدية بالطرق التقليدية للتصبين على البارد للحفاظ على كامل الفوائد الطبيعية.' 
-                            : 'Chaque produit est fabriqué à la main à Mahdia selon des méthodes traditionnelles de saponification à froid pour préserver tous ses bienfaits.'
-                        }>
-                          <span className="flex items-center gap-2 cursor-help">
-                            <Award className="h-4 w-4 shrink-0 hover:scale-110 transition-transform" />
-                            <span className={`text-xs uppercase tracking-wider font-bold ${lang === 'ar' ? 'font-cairo' : ''}`}>
-                              {lang === 'ar' ? 'حرفي تقليدي' : 'ARTISANAL'}
-                            </span>
-                          </span>
-                        </Tooltip>
+
+                      {/* Composition Area styled like a premium label */}
+                      <div className={`p-3 rounded-xl border ${cardTheme.border} ${cardTheme.bg} shadow-2xs`}>
+                        <span className={`text-[10px] font-bold block mb-1 font-display ${cardTheme.tagColor}`}>
+                          🧪 المكونات والتركيبة:
+                        </span>
+                        <p className="text-[10px] text-slate-600 dark:text-slate-300 font-medium leading-relaxed font-sans">
+                          {productDetailsMap[p.nom]?.ingredients?.join(' • ') || 'زيوت نباتية طبيعية معصورة على البارد مع خلاصات المهدية النقية.'}
+                        </p>
                       </div>
-                      <p className={`text-xs ${themeTextMuted} ${lang === 'ar' ? 'font-cairo' : ''}`}>
-                        {lang === 'ar' ? 'مصبوب ومقطع يدويًا' : 'Moulé et découpé à la main'}
-                      </p>
-                    </div>
-                    <div className="space-y-1">
-                      <div className="flex items-center gap-2 text-[#C18D5D]">
-                        <Tooltip content={
-                          lang === 'ar' 
-                            ? 'توصيل سريع خلال 24 إلى 48 ساعة لكامل التراب التونسي والدفع نقداً عند الاستلام بعد معاينة طلبك.' 
-                            : 'Livraison rapide sous 24 à 48 heures sur toute la Tunisie avec paiement sécurisé en espèces après réception.'
-                        }>
-                          <span className="flex items-center gap-2 cursor-help">
-                            <Truck className="h-4 w-4 shrink-0 hover:scale-110 transition-transform" />
-                            <span className={`text-xs uppercase tracking-wider font-bold ${lang === 'ar' ? 'font-cairo' : ''}`}>
-                              {lang === 'ar' ? 'التوصيل' : 'LIVRAISON'}
-                            </span>
-                          </span>
-                        </Tooltip>
-                      </div>
-                      <p className={`text-xs ${themeTextMuted} ${lang === 'ar' ? 'font-cairo' : ''}`}>
-                        {lang === 'ar' ? 'الدفع نقداً عند الاستلام' : 'Espèces à la livraison'}
-                      </p>
-                    </div>
-                  </div>
-                </div>
 
-              </div>
-            </div>
-          </section>
-
-          {/* Core Values Section */}
-          <section className={`transition-colors duration-300 ${themeBgWhite} py-16 border-b ${themeBorderLight}`}>
-            <div className="mx-auto max-w-7xl px-6 sm:px-8 lg:px-12">
-              <div className="text-center max-w-xl mx-auto mb-16">
-                <span className="text-xs uppercase tracking-[0.3em] font-bold text-[#C18D5D]">
-                  {lang === 'ar' ? 'ميثاق الجودة والالتزام' : 'Charte Qualité'}
-                </span>
-                <h2 className={`font-serif text-3xl sm:text-4xl font-semibold tracking-tight ${themeTextMain} mt-2`}>
-                  {lang === 'ar' ? 'لماذا تختار معشبتنا التجميلية؟' : 'Pourquoi choisir notre herboristerie ?'}
-                </h2>
-                <div className="w-12 h-0.5 bg-[#C18D5D] mx-auto mt-4" />
-              </div>
-
-              <div className="grid grid-cols-1 gap-10 sm:grid-cols-2 lg:grid-cols-4">
-                
-                <div className={`border ${themeBorderMain} p-8 rounded-sm ${isNightMode ? 'bg-[#19241A]/50 hover:bg-[#19241A]' : 'bg-[#F9F7F2]/50 hover:bg-[#F9F7F2]'} transition-colors duration-300 ${lang === 'ar' ? 'text-right' : 'text-left'}`}>
-                  <h3 className={`font-serif italic text-lg ${themeTextMain} mb-2`}>
-                    {lang === 'ar' ? 'زيوت نباتية ثمينة' : 'Huiles Précieuses'}
-                  </h3>
-                  <p className={`text-xs ${themeTextMuted} leading-relaxed`}>
-                    {lang === 'ar' 
-                      ? 'نحن نستخلص زيت بذور التين الشوكي التونسي النقي والمعصور على البارد، وهو أقوى إكسير طبيعي لمقاومة علامات تقدم السن في العالم النباتي.'
-                      : "Nous extrayons l'huile pure de pépins de figue de barbarie tunisienne, l'élixir anti-âge le plus puissant du règne végétal."}
-                  </p>
-                </div>
-
-                <div className={`border ${themeBorderMain} p-8 rounded-sm ${isNightMode ? 'bg-[#19241A]/50 hover:bg-[#19241A]' : 'bg-[#F9F7F2]/50 hover:bg-[#F9F7F2]'} transition-colors duration-300 ${lang === 'ar' ? 'text-right' : 'text-left'}`}>
-                  <h3 className={`font-serif italic text-lg ${themeTextMain} mb-2`}>
-                    {lang === 'ar' ? 'خالٍ من المواد الكيميائية' : 'Zéro Chimie'}
-                  </h3>
-                  <p className={`text-xs ${themeTextMuted} leading-relaxed`}>
-                    {lang === 'ar' 
-                      ? 'نعتمد تصبيناً تقليدياً يحافظ على جودة الزيوت وبكامل الغليسرين الطبيعي المرطب. تركيباتنا خالية تماماً من البارابين، السلفات والمواد الحافظة الاصطناعية.'
-                      : 'Saponification traditionnelle préservant les glycérines naturelles. Aucun parabène, sulfate ou conservateur synthétique.'}
-                  </p>
-                </div>
-
-                <div className={`border ${themeBorderMain} p-8 rounded-sm ${isNightMode ? 'bg-[#19241A]/50 hover:bg-[#19241A]' : 'bg-[#F9F7F2]/50 hover:bg-[#F9F7F2]'} transition-colors duration-300 ${lang === 'ar' ? 'text-right' : 'text-left'}`}>
-                  <h3 className={`font-serif italic text-lg ${themeTextMain} mb-2`}>
-                    {lang === 'ar' ? 'عطور طبيعية ساحرة' : 'Parfums Subtils'}
-                  </h3>
-                  <p className={`text-xs ${themeTextMuted} leading-relaxed`}>
-                    {lang === 'ar' 
-                      ? 'من عبير تقطير زهر البرتقال الفواح بنابل والورد الجوري، إلى نفحات ياسمين الحمامات البري الساحر. عبير أصيل ينبض بأصالة الطبيعة التونسية.'
-                      : "De la fleur d'oranger de Nabeul au jasmin sauvage de Hammamet. Des senteurs authentiques et enivrantes de Tunisie."}
-                  </p>
-                </div>
-
-                <div className={`border ${themeBorderMain} p-8 rounded-sm ${isNightMode ? 'bg-[#19241A]/50 hover:bg-[#19241A]' : 'bg-[#F9F7F2]/50 hover:bg-[#F9F7F2]'} transition-colors duration-300 ${lang === 'ar' ? 'text-right' : 'text-left'}`}>
-                  <h3 className={`font-serif italic text-lg ${themeTextMain} mb-2`}>
-                    {lang === 'ar' ? 'دعم الاقتصاد المحلي التونسي' : 'Soutien Agricole'}
-                  </h3>
-                  <p className={`text-xs ${themeTextMuted} leading-relaxed`}>
-                    {lang === 'ar' 
-                      ? 'نلتزم بالشراء المسؤول والعادل ومباشرة من التعاونيات النسائية والمزارعات المحليات في القصرين، الساحل، والوطن القبلي التونسي لدعم الاستدامة والعمل الكريم.'
-                      : "Achat équitable auprès de femmes agricultrices et coopératives de Kasserine, du Sahel et du Cap Bon tunisien."}
-                  </p>
-                </div>
-
-              </div>
-            </div>
-          </section>
-
-          {/* Catalogue Section with refined grids */}
-          <section id="catalogue" className={`py-20 ${themeBgMain} transition-colors duration-300`}>
-            <div className="mx-auto max-w-7xl px-6 sm:px-8 lg:px-12">
-              
-              <div className="text-center max-w-2xl mx-auto mb-16 space-y-3">
-                <span className="text-xs uppercase tracking-[0.4em] font-bold text-[#C18D5D]">Sélection Exclusive</span>
-                <h2 className={`font-serif text-3xl sm:text-4xl font-semibold ${themeTextMain}`}>
-                  Les Savons &amp; Onctueux du Moment
-                </h2>
-                <p className={`text-xs ${themeTextMuted} max-w-md mx-auto leading-relaxed`}>
-                  Cliquez sur "Prendre commande" pour ouvrir le Chatbot. Sarra (IA) s'occupera d'enregistrer vos informations de livraison en Tunisie.
-                </p>
-              </div>
-
-              {loadingProducts ? (
-                <div className="grid grid-cols-1 gap-8 sm:grid-cols-2 lg:grid-cols-3">
-                  {[1, 2, 3].map((n) => (
-                    <div key={n} className={`animate-pulse ${themeBgWhite} border ${themeBorderMain} p-6 space-y-4`}>
-                      <div className="bg-[#E8E4DB] h-60 w-full animate-pulse" />
-                      <div className="h-4 bg-[#E8E4DB] rounded w-2/3" />
-                      <div className="h-3 bg-[#E8E4DB] rounded w-full" />
-                      <div className="h-10 bg-[#E8E4DB] rounded w-full" />
-                    </div>
-                  ))}
-                </div>
-              ) : (
-                <motion.div 
-                  className="grid grid-cols-1 gap-8 sm:grid-cols-2 lg:grid-cols-3"
-                  variants={productContainerVariants}
-                  initial="hidden"
-                  whileInView="visible"
-                  viewport={{ once: true, amount: 0.1 }}
-                >
-                  {products.map((product) => {
-                    const translatedNom = lang === 'ar' && productArMap[product.nom] ? productArMap[product.nom].nom : product.nom;
-                    const translatedDesc = lang === 'ar' && productArMap[product.nom] ? productArMap[product.nom].description : product.description;
-                    return (
-                      <motion.div 
-                        key={product.id} 
-                        variants={productCardVariants}
-                        className={`group ${themeBgWhite} border ${themeBorderMain} p-5 hover:border-[#C18D5D]/40 transition-all duration-300 flex flex-col justify-between`}
-                      >
-                        <div>
-                          {/* Image Wrap - Clickable to open details */}
-                          <div 
-                            onClick={() => setSelectedProduct(product)}
-                            className={`aspect-square ${isNightMode ? 'bg-[#223323]' : 'bg-[#E8E4DB]'} overflow-hidden mb-4 relative cursor-pointer group-hover:opacity-95`}
+                      {/* Action buttons */}
+                      <div className="space-y-2 pt-1 text-right">
+                        <div className="grid grid-cols-2 gap-2">
+                          <button
+                            onClick={() => setSelectedProduct(p)}
+                            className="px-2 py-2 min-h-[48px] border border-[#C18D5D]/40 hover:border-[#C18D5D] hover:bg-[#C18D5D]/10 text-[#C18D5D] text-[11px] font-semibold rounded-md transition-all duration-300 flex items-center justify-center gap-1 cursor-pointer"
                           >
-                            <LazyImage 
-                              src={product.image_url} 
-                              alt={translatedNom} 
-                              className="h-full w-full object-cover grayscale-[10%] transition-transform duration-500 group-hover:scale-105"
-                            />
-                            <div className="absolute top-3 left-3 bg-[#2C3E2E] text-[#F9F7F2] text-[9px] uppercase tracking-widest font-semibold px-2.5 py-1">
-                              {lang === 'ar' ? 'حرفي تونسي أصيل' : 'Artisanal Tunisien'}
-                            </div>
-                            
-                            {/* Elegant hover overlay */}
-                            <div className="absolute inset-0 bg-[#2C3E2E]/10 opacity-0 group-hover:opacity-100 transition-opacity flex items-center justify-center">
-                              <span className={`transition-colors duration-300 ${isNightMode ? 'bg-[#182219] text-[#FAF9F5] border-[#FAF9F5]/10' : 'bg-[#F9F7F2] text-[#2C3E2E] border-[#2C3E2E]/15'} text-[10px] uppercase tracking-widest font-bold px-3 py-1.5 shadow-sm border flex items-center space-x-1`}>
-                                <Eye className="h-3.5 w-3.5 text-[#C18D5D]" />
-                                <span>{lang === 'ar' ? 'التفاصيل والمكونات' : 'En savoir plus'}</span>
-                              </span>
-                            </div>
-                          </div>
-
-                          {/* Title & Description */}
-                          <div className={`space-y-2 mt-2 ${lang === 'ar' ? 'text-right' : 'text-left'}`}>
-                            <h3 
-                              onClick={() => setSelectedProduct(product)}
-                              className={`font-serif text-lg font-bold ${themeTextMain} hover:text-[#C18D5D] transition-colors leading-snug cursor-pointer`}
-                            >
-                              {translatedNom}
-                            </h3>
-                            <p className={`text-xs ${themeTextMuted} leading-relaxed`}>
-                              {translatedDesc}
-                            </p>
-                            <button
-                              onClick={() => setSelectedProduct(product)}
-                              className={`text-[10px] font-bold text-[#C18D5D] hover:${themeTextMain} transition-colors flex items-center space-x-1 cursor-pointer pt-1 ${lang === 'ar' ? 'flex-row-reverse space-x-reverse' : ''}`}
-                            >
-                              <Leaf className="h-3 w-3" />
-                              <span>{lang === 'ar' ? 'عرض المكونات وطريقة الاستعمال' : 'Afficher les ingrédients & conseils'}</span>
-                            </button>
-                          </div>
+                            <Eye className="h-3.5 w-3.5" />
+                            <span>تفاصيل المكونات</span>
+                          </button>
+                          
+                          <button
+                            onClick={() => handleOrderClick(p.nom)}
+                            className="px-2 py-2 min-h-[48px] border border-transparent bg-[#C18D5D]/15 hover:bg-[#C18D5D]/30 text-[#2C3E2E] dark:text-[#FAF9F5] text-[11px] font-semibold rounded-md transition-all duration-300 flex items-center justify-center gap-1 cursor-pointer"
+                          >
+                            <MessageSquare className="h-3.5 w-3.5 text-[#C18D5D]" />
+                            <span>طلب سريع</span>
+                          </button>
                         </div>
 
-                        {/* Price & Action footer */}
-                        <div className={`pt-4 mt-6 border-t ${themeBorderMain} flex items-center justify-between gap-1.5 ${lang === 'ar' ? 'flex-row-reverse' : ''}`}>
-                          <div className={lang === 'ar' ? 'text-right' : 'text-left'}>
-                            <span className={`text-[9px] ${themeTextMuted} uppercase tracking-wider block font-semibold`}>
-                              {lang === 'ar' ? 'سعر المنتج' : 'Prix Tunisien'}
-                            </span>
-                            <span className="text-base font-serif italic font-bold text-[#C18D5D]">{product.prix.toFixed(3)} {lang === 'ar' ? 'د.ت' : 'TND'}</span>
-                          </div>
-                          <div className={`flex gap-1.5 shrink-0 ${lang === 'ar' ? 'flex-row-reverse' : ''}`}>
-                            <button
-                              onClick={() => setSelectedProduct(product)}
-                              className={`rounded-sm border ${
-                                isNightMode 
-                                  ? 'border-[#FAF9F5]/10 hover:border-[#C18D5D] text-[#FAF9F5] bg-[#19241A]/30' 
-                                  : 'border-[#2C3E2E]/15 hover:border-[#C18D5D] text-[#2C3E2E] bg-[#FAF9F5]/30'
-                              } hover:text-[#C18D5D] transition-colors px-3 py-2 text-[10px] uppercase tracking-widest font-bold cursor-pointer`}
-                              title={lang === 'ar' ? 'عرض تفاصيل المكونات والنصائح' : "Voir les ingrédients et conseils d'utilisation"}
-                            >
-                              {lang === 'ar' ? 'تفاصيل' : 'Détails'}
-                            </button>
-                            <button
-                              onClick={() => handleOrderClick(product.nom)}
-                              className={`rounded-sm transition-colors px-3 py-2 text-[10px] uppercase tracking-widest font-bold cursor-pointer ${
-                                isNightMode 
-                                  ? 'bg-[#C18D5D] text-white hover:bg-[#b07d4e]' 
-                                  : 'bg-[#2C3E2E] text-[#F9F7F2] hover:bg-[#C18D5D]'
-                              }`}
-                            >
-                              {lang === 'ar' ? 'طلب الآن' : 'Commander'}
-                            </button>
-                          </div>
-                        </div>
-                      </motion.div>
-                    );
-                  })}
-                </motion.div>
-              )}
-            </div>
-          </section>
+                        <button
+                          onClick={() => handleAddToCart(p)}
+                          className="w-full py-3 min-h-[48px] bg-[#2C3E2E] hover:bg-[#C18D5D] text-[#F9F7F2] text-xs font-bold rounded-md transition-all duration-300 flex items-center justify-center gap-1.5 cursor-pointer shadow-xs"
+                        >
+                          <ShoppingBag className="h-4 w-4 text-amber-400" />
+                          <span>أضف إلى السلة 🌸</span>
+                        </button>
+                      </div>
+                    </div>
+                  </motion.div>
+                );
+              })}
+              </motion.div>
+            )}
 
-          {/* Testimonials (Témoignages) Section - Editorial Style */}
-          <section className={`py-20 ${themeBgWhite} border-b ${themeBorderLight} transition-colors duration-300`}>
-            <div className="mx-auto max-w-7xl px-6 sm:px-8 lg:px-12">
-              
-              <div className="text-center max-w-2xl mx-auto mb-16 space-y-3">
-                <span className="text-[#C18D5D] text-xs uppercase tracking-[0.4em] font-bold block">{lang === 'ar' ? 'تجارب مشتركة' : 'Expériences Partagées'}</span>
-                <h2 className={`font-serif text-3xl sm:text-4xl font-semibold ${themeTextMain}`}>
-                  {lang === 'ar' ? 'النعومة والراحة في حياتك اليومية' : 'La Douceur Adoptée au Quotidien'}
-                </h2>
-                <div className="w-12 h-0.5 bg-[#C18D5D] mx-auto mt-4" />
-                <p className={`text-xs ${themeTextMuted} max-w-md mx-auto leading-relaxed pt-2`}>
-                  {lang === 'ar' ? 'اكتشف الآراء والشهادات الحقيقية لعملائنا الذين جعلوا من Pure Glow MH جزءاً لا يتجزأ من روتينهم اليومي للعناية بالبشرة.' : 'Découvrez les retours authentiques de ceux et celles qui ont fait de Pure Glow MH leur rituel de soin favori.'}
+            {/* High-Contrast Testimonials Section */}
+            <section className="mt-28 py-16 px-6 rounded-2xl bg-[#E8E4DB]/20 border border-emerald-900/5 relative overflow-hidden">
+              <div className="max-w-3xl mx-auto text-center space-y-3 mb-12">
+                <span className="text-[#C18D5D] text-xs font-bold tracking-wider uppercase">تجارب حقيقية تلامس الروح</span>
+                <h2 className="font-display text-2xl sm:text-3xl font-extrabold">آراء عملائنا الأوفياء في تونس</h2>
+                <p className="text-xs sm:text-sm text-slate-500 leading-relaxed">
+                  نسعد بمشاركة بعض من التجارب الصادقة التي تلقيناها من عملائنا بعد تجربة مستحضراتنا الطبيعية المصنوعة على البارد.
                 </p>
               </div>
 
-              <div className="grid grid-cols-1 gap-8 md:grid-cols-3">
-                {/* Testimonial 1 */}
-                <div className={`border ${themeBorderMain} ${isNightMode ? 'bg-[#19241A]/40' : 'bg-[#F9F7F2]/40'} p-8 flex flex-col justify-between hover:border-[#C18D5D]/30 transition-all duration-300 relative group`}>
-                  <span className="font-serif text-6xl text-[#C18D5D]/15 absolute top-4 left-6 pointer-events-none select-none">“</span>
-                  <div className="space-y-4 relative z-10">
-                    <div className="flex space-x-1">
-                      {[1, 2, 3, 4, 5].map((s) => (
-                        <Star key={s} className="h-3.5 w-3.5 fill-[#C18D5D] text-[#C18D5D]" />
-                      ))}
+              <div className="grid grid-cols-1 md:grid-cols-3 gap-8">
+                <div className={`${themeBgCard} p-6 rounded-sm border ${themeBorder} shadow-xs relative flex flex-col justify-between text-right space-y-4`}>
+                  <div className="space-y-3">
+                    <div className="flex items-center gap-0.5 text-amber-500">
+                      {[1, 2, 3, 4, 5].map((s) => <Star key={s} className="h-3.5 w-3.5 fill-current" />)}
                     </div>
-                    <p className={`text-sm font-serif italic ${themeTextMain} leading-relaxed ${lang === 'ar' ? 'text-right font-cairo' : 'text-left'}`}>
-                      {lang === 'ar' 
-                        ? '"صابون التين الشوكي المصنع على البارد هو أعجوبة حقيقية! أصبحت بشرتي ناعمة ورطبة للغاية بعد أيام قليلة من الاستعمال. معشبة استثنائية بكل المقاييس!"'
-                        : '"Le savon saponifié à froid à l\'huile de figue de barbarie est une pure merveille. Ma peau est incroyablement douce et réhydratée après seulement quelques jours. Une herboristerie d\'exception !"'
-                      }
+                    <p className="text-xs text-slate-600 dark:text-slate-300 leading-relaxed italic">
+                      "صابون التين الشوكي المصنوع على البارد هو أعجوبة حقيقية! بشرتي أصبحت ناعمة ومشرقة للغاية في غضون أيام قليلة فقط. فخورة بوجود منتج تونسي بهذه الجودة الفائقة!"
                     </p>
                   </div>
-                  <div className={`mt-8 pt-4 border-t ${themeBorderMain} flex items-center justify-between ${lang === 'ar' ? 'flex-row-reverse' : ''}`}>
-                    <div className={lang === 'ar' ? 'text-right' : 'text-left'}>
-                      <h4 className={`font-sans font-bold text-xs ${themeTextMain} uppercase tracking-wider`}>{lang === 'ar' ? 'أمينة قدور' : 'Amina Kaddour'}</h4>
-                      <p className="text-[10px] text-[#C18D5D] font-medium uppercase tracking-widest">{lang === 'ar' ? 'المهدية، تونس' : 'Mahdia, Tunisie'}</p>
+                  <div className="flex items-center gap-3 pt-4 border-t border-slate-200/50 dark:border-slate-800/50">
+                    <div className="h-8 w-8 rounded-full bg-[#C18D5D]/20 text-[#C18D5D] font-display font-bold flex items-center justify-center text-xs">أ</div>
+                    <div>
+                      <h5 className="font-display text-xs font-bold">أمينة قدور</h5>
+                      <span className="text-[10px] text-slate-400">شراء مؤكد — المهدية</span>
                     </div>
-                    <span className={`text-[9px] uppercase tracking-wider font-semibold ${isNightMode ? 'bg-emerald-950 text-[#FAF9F5]' : 'bg-[#2C3E2E] text-[#F9F7F2]'} px-2 py-0.5`}>
-                      {lang === 'ar' ? 'تقييم موثق' : 'Avis vérifié'}
-                    </span>
                   </div>
                 </div>
 
-                {/* Testimonial 2 */}
-                <div className={`border ${themeBorderMain} ${isNightMode ? 'bg-[#19241A]/40' : 'bg-[#F9F7F2]/40'} p-8 flex flex-col justify-between hover:border-[#C18D5D]/30 transition-all duration-300 relative group`}>
-                  <span className={`font-serif text-6xl text-[#C18D5D]/15 absolute top-4 ${lang === 'ar' ? 'right-6' : 'left-6'} pointer-events-none select-none`}>“</span>
-                  <div className="space-y-4 relative z-10">
-                    <div className={`flex space-x-1 ${lang === 'ar' ? 'justify-end' : ''}`}>
-                      {[1, 2, 3, 4, 5].map((s) => (
-                        <Star key={s} className="h-3.5 w-3.5 fill-[#C18D5D] text-[#C18D5D]" />
-                      ))}
+                <div className={`${themeBgCard} p-6 rounded-sm border ${themeBorder} shadow-xs relative flex flex-col justify-between text-right space-y-4`}>
+                  <div className="space-y-3">
+                    <div className="flex items-center gap-0.5 text-amber-500">
+                      {[1, 2, 3, 4, 5].map((s) => <Star key={s} className="h-3.5 w-3.5 fill-current" />)}
                     </div>
-                    <p className={`text-sm font-serif italic ${themeTextMain} leading-relaxed ${lang === 'ar' ? 'text-right font-cairo' : 'text-left'}`}>
-                      {lang === 'ar' 
-                        ? '"المقشر الطبيعي وكريم الترطيب بزيت الأرغان مثاليان لروتيني اليومي. التوصيل إلى سوسة كان سريعاً جداً، والتعليب الأنيق المزين بالورود المجففة يعكس دقة واهتماماً نادراً بالتفاصيل."'
-                        : '"Le gommage à l\'argile et la crème hydratante au beurre de karité bio sont parfaits pour ma routine. L\'expédition vers Sousse a été ultra rapide et l\'emballage en carton brut et fleurs séchées est d\'un raffinement rare."'
-                      }
+                    <p className="text-xs text-slate-600 dark:text-slate-300 leading-relaxed italic">
+                      "مقشر القهوة وكريم الياسمين مثاليان لروتيني اليومي. التوصيل إلى سوسة كان سريعاً جداً والتغليف في كرتون صديق للبيئة مع لمسة الورد المجفف غاية في الرقي والأناقة."
                     </p>
                   </div>
-                  <div className={`mt-8 pt-4 border-t ${themeBorderMain} flex items-center justify-between ${lang === 'ar' ? 'flex-row-reverse' : ''}`}>
-                    <div className={lang === 'ar' ? 'text-right' : 'text-left'}>
-                      <h4 className={`font-sans font-bold text-xs ${themeTextMain} uppercase tracking-wider`}>{lang === 'ar' ? 'يوسف بوهلال' : 'Youssef Bouhlel'}</h4>
-                      <p className="text-[10px] text-[#C18D5D] font-medium uppercase tracking-widest">{lang === 'ar' ? 'سوسة، الساحل' : 'Sousse, Sahel'}</p>
+                  <div className="flex items-center gap-3 pt-4 border-t border-slate-200/50 dark:border-slate-800/50">
+                    <div className="h-8 w-8 rounded-full bg-[#C18D5D]/20 text-[#C18D5D] font-display font-bold flex items-center justify-center text-xs">ي</div>
+                    <div>
+                      <h5 className="font-display text-xs font-bold">يوسف بوهلال</h5>
+                      <span className="text-[10px] text-slate-400">شراء مؤكد — سوسة</span>
                     </div>
-                    <span className={`text-[9px] uppercase tracking-wider font-semibold ${isNightMode ? 'bg-emerald-950 text-[#FAF9F5]' : 'bg-[#2C3E2E] text-[#F9F7F2]'} px-2 py-0.5`}>
-                      {lang === 'ar' ? 'تقييم موثق' : 'Avis vérifié'}
-                    </span>
                   </div>
                 </div>
 
-                {/* Testimonial 3 */}
-                <div className={`border ${themeBorderMain} ${isNightMode ? 'bg-[#19241A]/40' : 'bg-[#F9F7F2]/40'} p-8 flex flex-col justify-between hover:border-[#C18D5D]/30 transition-all duration-300 relative group`}>
-                  <span className={`font-serif text-6xl text-[#C18D5D]/15 absolute top-4 ${lang === 'ar' ? 'right-6' : 'left-6'} pointer-events-none select-none`}>“</span>
-                  <div className="space-y-4 relative z-10">
-                    <div className={`flex space-x-1 ${lang === 'ar' ? 'justify-end' : ''}`}>
-                      {[1, 2, 3, 4, 5].map((s) => (
-                        <Star key={s} className="h-3.5 w-3.5 fill-[#C18D5D] text-[#C18D5D]" />
-                      ))}
+                <div className={`${themeBgCard} p-6 rounded-sm border ${themeBorder} shadow-xs relative flex flex-col justify-between text-right space-y-4`}>
+                  <div className="space-y-3">
+                    <div className="flex items-center gap-0.5 text-amber-500">
+                      {[1, 2, 3, 4, 5].map((s) => <Star key={s} className="h-3.5 w-3.5 fill-current" />)}
                     </div>
-                    <p className={`text-sm font-serif italic ${themeTextMain} leading-relaxed ${lang === 'ar' ? 'text-right font-cairo' : 'text-left'}`}>
-                      {lang === 'ar' 
-                        ? '"تجربة شراء مذهلة! تحدثت مع المساعدة الذكية سارة مباشرة بالدارجة التونسية، حيث نصحتني بصابون الياسمين وسجلت معلومات التوصيل في لحظات. برافو!"'
-                        : '"Une expérience d\'achat magique ! J\'ai discuté avec l\'assistante IA Sarra directement en Darija, elle m\'a conseillée sur le savon au jasmin et a enregistré mes informations de livraison en deux clics. Chapeau bas !"'
-                      }
+                    <p className="text-xs text-slate-600 dark:text-slate-300 leading-relaxed italic">
+                      "تجربة شراء مذهلة! تحدثت مع المستشارة الذكية سارة بالدارجة التونسية، ونصحتني بالصابون المناسب لبشرتي وسجلت طلبي وعنواني في ثوانٍ معدودة. فكرة عبقرية!"
                     </p>
                   </div>
-                  <div className={`mt-8 pt-4 border-t ${themeBorderMain} flex items-center justify-between ${lang === 'ar' ? 'flex-row-reverse' : ''}`}>
-                    <div className={lang === 'ar' ? 'text-right' : 'text-left'}>
-                      <h4 className={`font-sans font-bold text-xs ${themeTextMain} uppercase tracking-wider`}>{lang === 'ar' ? 'مريم غربال' : 'Meriam Ghorbel'}</h4>
-                      <p className="text-[10px] text-[#C18D5D] font-medium uppercase tracking-widest">{lang === 'ar' ? 'صفاقس' : 'Sfax'}</p>
+                  <div className="flex items-center gap-3 pt-4 border-t border-slate-200/50 dark:border-slate-800/50">
+                    <div className="h-8 w-8 rounded-full bg-[#C18D5D]/20 text-[#C18D5D] font-display font-bold flex items-center justify-center text-xs">م</div>
+                    <div>
+                      <h5 className="font-display text-xs font-bold">مريم غربال</h5>
+                      <span className="text-[10px] text-slate-400">شراء مؤكد — صفاقس</span>
                     </div>
-                    <span className={`text-[9px] uppercase tracking-wider font-semibold ${isNightMode ? 'bg-emerald-950 text-[#FAF9F5]' : 'bg-[#2C3E2E] text-[#F9F7F2]'} px-2 py-0.5`}>
-                      {lang === 'ar' ? 'تقييم موثق' : 'Avis vérifié'}
-                    </span>
                   </div>
                 </div>
               </div>
+            </section>
 
-            </div>
-          </section>
-
-          {/* FAQ (Foire Aux Questions) Section - Editorial Style */}
-          <section className={`py-20 ${themeBgMain} border-b ${themeBorderLight} transition-colors duration-300`}>
-            <div className="mx-auto max-w-4xl px-6 sm:px-8 lg:px-12">
-              
-              <div className="text-center max-w-2xl mx-auto mb-16 space-y-3">
-                <span className="text-[#C18D5D] text-xs uppercase tracking-[0.4em] font-bold block">{lang === 'ar' ? 'الأسئلة الشائعة' : 'Foire Aux Questions'}</span>
-                <h2 className={`font-serif text-3xl sm:text-4xl font-semibold ${themeTextMain}`}>
-                  {lang === 'ar' ? 'بعض الإجابات عن تساؤلاتكم حول منتجاتنا الطبيعية' : "Quelques réponses à vos questions d'herboristerie"}
-                </h2>
-                <div className="w-12 h-0.5 bg-[#C18D5D] mx-auto mt-4" />
-                <p className={`text-xs ${themeTextMuted} leading-relaxed pt-2`}>
-                  {lang === 'ar' ? 'نحن نلتزم بالشفافية المطلقة حول طريقة التصنيع اليدوي التقليدي وخدمات التوصيل في تونس.' : 'Nous privilégions une transparence totale sur nos processus de fabrication artisanale et nos services de livraison en Tunisie.'}
+            {/* Collapsible FAQ Section with Framer Motion Accordion */}
+            <section className="mt-28 max-w-4xl mx-auto py-8">
+              <div className="text-center space-y-3 mb-12">
+                <HelpCircle className="h-8 w-8 text-[#C18D5D] mx-auto animate-pulse" />
+                <h2 className="font-display text-2xl sm:text-3xl font-extrabold">الأسئلة الشائعة حول مستحضراتنا</h2>
+                <p className="text-xs sm:text-sm text-slate-500 leading-relaxed">
+                  كل ما تود معرفته عن عملية التصبين التقليدية على البارد والزيوت ومواعيد الشحن لكافة الولايات التونسية.
                 </p>
               </div>
 
               <div className="space-y-4">
                 {[
                   {
-                    q_fr: "Quels sont les ingrédients phares de vos cosmétiques et d’où proviennent-ils ?",
-                    q_ar: "ما هي المكونات الأساسية لمنتجاتكم ومن أين تأتي؟",
-                    a_fr: "Nos formulations s'articulent autour d'ingrédients précieux du terroir tunisien : l'huile pure de pépins de figue de barbarie biologique récoltée auprès de coopératives de Kasserine (un puissant élixir anti-âge), l'huile d'olive extra-vierge pressée à froid provenant de nos vergers familiaux du Sahel, et les absolues naturelles et enivrantes de jasmin de Hammamet ou de fleur d'oranger de Nabeul. Nous excluons toute chimie nocive pour honorer la pureté brute de la nature.",
-                    a_ar: "تتمحور تركيباتنا حول مكونات ثمينة مستخلصة من خيرات تونس الخضراء: زيت بذور التين الشوكي العضوي النقي الذي يتم جنيه من تعاونيات القصرين (وهو إكسير قوي لمقاومة علامات تقدم السن)، زيت الزيتون البكر الممتاز المعصور على البارد من بساتين عائلتنا بالساحل التونسي، ومقطرات الياسمين الطبيعي من الحمامات وزهر البرتقال الفواح من نابل. نحن نستبعد تماماً أي إضافات كيميائية ضارة احتراماً لنقاء ونضارة بشرتكم."
+                    q: "ما هي المكونات الرئيسية لمنتجاتكم ومن أين تأتي؟",
+                    a: "ترتكز تركيباتنا الطبيعية على خيرات أرض تونس الغنية: زيت بذور التين الشوكي العضوي الثمين من تعاونيات القصرين (وهو أقوى مضاد أكسدة طبيعي للتجاعيد)، وزيت الزيتون البكر الممتاز من حقولنا العائلية بالساحل، وخلاصات ومقطرات الياسمين من الحمامات وزهر البرتقال من نابل. نمنع تماماً أي إضافات كيميائية ضارة لضمان نقاء مطلق وبشرة صحية."
                   },
                   {
-                    q_fr: "Quels sont les tarifs et les délais de livraison à travers la Tunisie ?",
-                    q_ar: "ما هي أسعار وتواريخ (آجال) التوصيل في تونس؟",
-                    a_fr: "Nous expédions nos colis d'exception à votre porte sur toute la Tunisie (Grand Tunis, Cap Bon, Sahel, Sfax, Sousse, Bizerte et les régions intérieures) sous 24 à 48 heures ouvrables. Les frais de port s’élèvent à un tarif forfaitaire de 7 TND, et nous sommes ravis de vous offrir la livraison gratuite pour tout panier à partir de 60 TND. Le règlement s'effectue en toute simplicité en espèces (Cash à la livraison) lors du dépôt de votre colis.",
-                    a_ar: "نقوم بتوصيل طلباتكم مباشرة إلى باب منزلكم في جميع أنحاء الجمهورية التونسية (تونس الكبرى، الوطن القبلي، الساحل، صفاقس، سوسة، بنزرت وكافة المناطق الداخلية) في غضون 24 إلى 48 ساعة عمل. تكلفة التوصيل ثابتة ومقدرة بـ 7 دينار تونسي، ويسعدنا تقديم التوصيل المجاني بالكامل لكل طلب تفوق قيمته 60 دينار تونسي. الدفع يتم بكل أمان نقداً عند الاستلام بعد معاينة طلبيتك."
+                    q: "ما هي تكلفة ومدة التوصيل في تونس؟ وهل يتوفر الدفع عند الاستلام؟",
+                    a: "نشحن طلبياتنا مباشرة إلى باب منزلك في جميع ولايات تونس في غضون 24 إلى 48 ساعة كحد أقصى. تبلغ تكلفة التوصيل 7 دنانير فقط، ونقدم التوصيل مجاناً بالكامل لكل طلب تفوق قيمته 60 ديناراً. الدفع يكون نقداً عند الاستلام بعد تسلم ومعاينة طلبيتك بنفسك للتأكد من جودتها."
                   },
                   {
-                    q_fr: "En quoi consiste la saponification à froid et quelles sont vos garanties bio ?",
-                    q_ar: "ما هي عملية التصبين على البارد وما هي ضماناتكم العضوية؟",
-                    a_fr: "La saponification à froid est une méthode traditionnelle exigeante qui permet de fabriquer du savon sans chauffer les huiles végétales de base. Ce procédé préserve intacts l'ensemble de leurs bienfaits, vitamins et de la glycérine hydratante naturelle. Nos formulations sont entièrement exemptes de sulfates, de parabènes, de silicones ou de parfums synthétiques irritants. Chaque soin est entièrement biodégradable et respecte votre épiderme.",
-                    a_ar: "التصبين على البارد هو طريقة تقليدية أصيلة تتطلب دقة وخبرة عالية لصنع الصابون دون تسخين الزيوت النباتية الأساسية. تحافظ هذه الطريقة على سلامة جميع الفوائد والفيتامينات، بالإضافة إلى الغليسرين الطبيعي المرطب للبشرة. جميع مستحضراتنا خالية تماماً من الكبريتات (السلفات)، البارابين، السيليكون أو العطور الاصطناعية المسببة للتهيج. كل منتج صديق للبيئة وقابل للتحلل بالكامل."
+                    q: "ما هي طريقة التصبين على البارد وما الذي يميزها عن الصابون التجاري؟",
+                    a: "التصبين على البارد هو عملية يدوية تقليدية صعبة تتطلب تصنيع الصابون دون تعريض الزيوت لحرارة عالية، مما يحافظ على كامل الفوائد الطبيعية للزيوت، الفيتامينات، والغليسرين الطبيعي المرطب للبشرة. جميع منتجاتنا خالية تماماً من الكبريتات والبارابين والمثبتات الكيميائية المسببة لتهيجات وتحسس البشرة."
                   },
                   {
-                    q_fr: "Comment commander ou échanger avec votre conseillère virtuelle Sarra ?",
-                    q_ar: "كيف يمكنني الطلب أو التحدث مع المستشارة الافتراضية سارة؟",
-                    a_fr: "Sarra est notre assistante IA chaleureuse. Vous pouvez lui adresser des questions cosmétiques ou lui désigner vos produits à commander via le chat en bas à droite. Elle s'exprime gracieusement en français comme en Arabe Tunisien (Darija). Elle collectera vos articles choisis et vos coordonnées d’expédition pour les enregistrer immédiatement et de façon sécurisée.",
-                    a_ar: "سارة هي مستشارتنا الذكية والودودة. يمكنك طرح أي أسئلة تخص العناية بالبشرة أو اختيار المنتجات التي تود طلبها عبر المحادثة المباشرة أسفل الشاشة. تتحدث سارة باللغتين العربية والدارجة التونسية بطلاقة، وسوف تقوم بتسجيل قائمة مشترياتك وعنوان التوصيل فوراً وبكل أمان لتصلك شحنتك في أسرع وقت."
+                    q: "كيف يمكنني تقديم طلب شراء أو تعديل بيانات التوصيل؟",
+                    a: "يمكنك تقديم طلب الشراء ببساطة تامة من خلال التحدث مباشرة مع مستشارتنا الذكية سارة المتاحة في الزاوية اليمنى السفلية للموقع. ستجيب سارة على استفساراتك وتسجل معلومات التوصيل (الاسم، الهاتف والعنوان) وتدرجها في نظام الشحن تلقائياً دون تعقيد."
                   }
-                ].map((item, idx) => {
+                ].map((faq, idx) => {
                   const isOpen = openFaqIndex === idx;
-                  const qText = lang === 'ar' ? item.q_ar : item.q_fr;
-                  const aText = lang === 'ar' ? item.a_ar : item.a_fr;
                   return (
                     <div 
                       key={idx} 
-                      className={`border ${themeBorderMain} ${themeBgWhite} hover:border-[#C18D5D]/25 transition-all duration-300 rounded-sm overflow-hidden`}
+                      className={`rounded-sm border ${themeBorder} ${themeBgCard} transition-all duration-300 overflow-hidden`}
                     >
                       <button
                         onClick={() => setOpenFaqIndex(isOpen ? null : idx)}
-                        className={`w-full px-6 py-5 flex items-center justify-between font-sans text-sm font-bold ${themeTextMain} tracking-wide hover:bg-[#F9F7F2]/30 transition-colors cursor-pointer ${lang === 'ar' ? 'flex-row-reverse text-right' : 'text-left'}`}
+                        className="w-full px-5 py-4 flex items-center justify-between font-display font-bold text-sm sm:text-base text-right cursor-pointer text-[#2C3E2E] dark:text-[#FAF9F5] hover:text-[#C18D5D]"
                       >
-                        <span className={lang === 'ar' ? 'pl-4 font-cairo' : 'pr-4'}>{qText}</span>
-                        <span className="flex-shrink-0 text-[#C18D5D]">
-                          {isOpen ? <Minus className="h-4 w-4" /> : <Plus className="h-4 w-4" />}
-                        </span>
+                        <span>{faq.q}</span>
+                        <span className={`text-[#C18D5D] transition-transform duration-300 text-lg font-bold ${isOpen ? 'rotate-45' : ''}`}>＋</span>
                       </button>
-                      
-                      <AnimatePresence>
+                      <AnimatePresence initial={false}>
                         {isOpen && (
                           <motion.div
                             initial={{ height: 0, opacity: 0 }}
                             animate={{ height: "auto", opacity: 1 }}
                             exit={{ height: 0, opacity: 0 }}
                             transition={{ duration: 0.25, ease: "easeInOut" }}
-                            className="overflow-hidden"
+                            className="px-5 pb-5 pt-1 text-xs sm:text-sm text-slate-600 dark:text-slate-400 leading-relaxed border-t border-slate-100 dark:border-slate-800"
                           >
-                            <p className={`px-6 pb-6 pt-2 text-xs leading-relaxed ${themeTextMuted} border-t ${themeBorderLight} ${lang === 'ar' ? 'text-right font-cairo leading-loose text-justify' : 'text-left'}`}>
-                              {aText}
-                            </p>
+                            <p>{faq.a}</p>
                           </motion.div>
                         )}
                       </AnimatePresence>
@@ -1381,891 +1457,829 @@ export default function App() {
                   );
                 })}
               </div>
+            </section>
 
-            </div>
-          </section>
+            {/* Large Interactive Call to Action Banner */}
+            <section className="mt-28 p-8 sm:p-12 rounded-2xl bg-emerald-950 text-[#F9F7F2] relative overflow-hidden text-center space-y-6 shadow-2xl">
+              <div className="absolute inset-0 bg-radial-at-t from-[#C18D5D]/20 via-transparent to-transparent pointer-events-none" />
+              <div className="max-w-2xl mx-auto space-y-4">
+                <span className="text-[#C18D5D] text-xs font-bold tracking-widest uppercase block">طلبية سريعة واستشارة فورية</span>
+                <h2 className="font-display text-2xl sm:text-4xl font-extrabold leading-tight">جاهزة لترقية روتين جمالكِ؟</h2>
+                <p className="text-xs sm:text-sm text-[#E8E4DB]/85 leading-relaxed">
+                  تحدثي مع مستشارتنا الذكية سارة الآن. ستساعدكِ على تحديد احتياجات بشرتكِ بكل سرعة، وتسجيل طلب الشراء في ثوانٍ معدودة. الدفع كاش عند التسليم!
+                </p>
+              </div>
 
-          {/* Call to action Chatbot guide banner */}
-          <section className="bg-[#2C3E2E] text-[#F9F7F2] py-20 relative overflow-hidden border-t border-[#C18D5D]/20">
-            <div className="absolute top-0 right-0 h-96 w-96 rounded-full bg-[#C18D5D]/5 -mr-20 -mt-20 blur-3xl" />
-            
-            <div className="mx-auto max-w-4xl px-6 text-center space-y-6 relative z-10">
-              <span className="text-[#C18D5D] text-xs uppercase tracking-[0.4em] font-bold block">
-                {lang === 'ar' ? 'اطلب في لمحة بصر' : 'Commandez en un instant'}
-              </span>
-              
-              <h2 className="font-serif text-4xl sm:text-5xl font-semibold leading-tight">
-                {lang === 'ar' ? (
-                  <>تحدث مع <span className="italic font-light text-[#C18D5D]">سارة (مساعدتنا الذكية)</span></>
-                ) : (
-                  <>Discutez avec <span className="italic font-light text-[#C18D5D]">Sarra (Notre IA)</span></>
-                )}
-              </h2>
-              
-              <p className="text-sm text-[#E8E4DB] max-w-xl mx-auto leading-relaxed font-sans">
-                {lang === 'ar' 
-                  ? 'اطرح أسئلتك بالفرنسية أو بالدارجة التونسية. فقط زودها بمعلومات التوصيل لتصلك مستحضراتك وصابونك المفضل إلى منزلك! الدفع نقداً عند الاستلام.'
-                  : 'Posez vos questions en français ou en Arabe Tunisien (Darija). Indiquez simplement vos coordonnées pour faire livrer vos savons préférés chez vous ! Paiement en cash après réception.'}
-              </p>
-              
-              <div className="pt-4">
+              <div className="pt-2">
                 <button
                   onClick={() => {
-                    const event = new CustomEvent('chat-order', { detail: {} });
+                    const event = new CustomEvent('chat-order', { detail: { customPrompt: "مرحباً سارة، أريد الاستفسار عن صابون التين الشوكي ومساعدتي في إعداد طلب شراء له." } });
                     window.dispatchEvent(event);
                   }}
-                  className="rounded-sm bg-[#C18D5D] text-white px-8 py-4 text-xs uppercase tracking-widest font-bold hover:bg-[#b07d4e] transition-colors shadow-lg"
+                  className="px-8 py-4 min-h-[48px] bg-[#C18D5D] hover:bg-white hover:text-emerald-950 text-white font-bold text-xs sm:text-sm rounded-sm transition-all duration-300 shadow-xl inline-flex items-center justify-center gap-2 cursor-pointer"
                 >
-                  {lang === 'ar' ? 'افتح المحادثة مع سارة 💬' : 'Ouvrir le chat avec Sarra 💬'}
+                  <MessageSquare className="h-5 w-5" />
+                  <span>ابدئي المحادثة الفورية مع سارة الآن 💬</span>
                 </button>
               </div>
-            </div>
-          </section>
+            </section>
 
-          {/* Footer Line matching Editorial style */}
-          <footer className={`h-16 border-t ${themeBorderLight} flex flex-col md:flex-row items-center justify-between px-12 ${themeBgWhite} text-[10px] uppercase tracking-widest ${themeTextMuted} py-4 md:py-0 transition-colors duration-300`}>
-            <span>{lang === 'ar' ? 'توصيل لكامل تراب الجمهورية التونسية (7 د.ت أو مجاني)' : 'Livraison partout en Tunisie (7-8 TND ou offerte)'}</span>
-            <span>{lang === 'ar' ? 'الدفع نقداً عند الاستلام' : 'Paiement en espèces à la livraison'}</span>
-            <span>© {new Date().getFullYear()} Pure Glow MH</span>
-          </footer>
-        </>
-      ) : activeTab === 'suivi' ? (
-        /* Dynamic High-Fidelity Client Order Tracking View */
-        <main className="mx-auto max-w-4xl px-6 py-12 sm:px-8">
-          
-          {/* Top Banner and title */}
-          <div className="text-center mb-10 space-y-3">
-            <span className="text-[#C18D5D] text-[10px] uppercase tracking-[0.4em] font-bold block">
-              {lang === 'ar' ? 'تتبع الطلبيات في الوقت الحقيقي' : 'Suivi de livraison en direct'}
-            </span>
-            <h2 className={`font-serif text-3xl sm:text-4xl font-bold text-[#2C3E2E] ${lang === 'ar' ? 'font-amiri' : ''}`}>
-              {lang === 'ar' ? 'أين هي طلبيتك؟' : 'Où en est votre commande ?'}
-            </h2>
-            <p className={`text-xs text-[#5A5A40] max-w-lg mx-auto leading-relaxed ${lang === 'ar' ? 'font-cairo' : ''}`}>
-              {lang === 'ar' 
-                ? 'أدخل رقم المرجع الخاص بطلبك (الذي تلقيته من سارة أو تجده في سجلاتك) لمعرفة حالة توصيل منتجاتك الطبيعية مباشرة.'
-                : 'Saisissez votre numéro de référence unique à 5 ou 6 chiffres pour suivre l\'acheminement de vos soins botaniques en temps réel.'}
-            </p>
           </div>
+        )}
 
-          {/* Search Box Card */}
-          <div className={`${themeBgWhite} border ${themeBorderMain} rounded-sm p-6 sm:p-8 shadow-xs mb-8 transition-colors duration-300`}>
-            <div className="flex flex-col sm:flex-row gap-4">
-              <div className="relative flex-1">
-                <Search className={`absolute top-1/2 -translate-y-1/2 h-4 w-4 text-[#C18D5D] ${lang === 'ar' ? 'right-4' : 'left-4'}`} />
-                <input
-                  type="text"
-                  placeholder={lang === 'ar' ? 'رقم المرجع (مثال: 539281)...' : 'Référence de commande (ex: 539281)...'}
-                  value={trackRef}
-                  onChange={(e) => setTrackRef(e.target.value)}
-                  onKeyDown={(e) => {
-                    if (e.key === 'Enter') handleTrackOrder();
-                  }}
-                  className={`w-full rounded-sm border ${
-                    isNightMode ? 'border-[#FAF9F5]/10 bg-[#1D2A1E] text-[#FAF9F5] placeholder-[#FAF9F5]/40' : 'border-[#2C3E2E]/15 bg-[#FAF9F5] text-[#2C3E2E] placeholder-[#5A5A40]/60'
-                  } py-3.5 text-sm focus:border-[#C18D5D] focus:outline-hidden focus:ring-1 focus:ring-[#C18D5D] ${
-                    lang === 'ar' ? 'pr-11 pl-4 text-right font-cairo' : 'pl-11 pr-4 text-left'
-                  }`}
-                />
-              </div>
-              <button
-                onClick={() => handleTrackOrder()}
-                disabled={trackLoading}
-                className={`rounded-sm transition-all shadow-md cursor-pointer disabled:opacity-50 flex items-center justify-center gap-2 ${
-                  isNightMode 
-                    ? 'bg-[#C18D5D] hover:bg-[#b07d4e] text-white' 
-                    : 'bg-[#2C3E2E] hover:bg-[#C18D5D] text-[#F9F7F2]'
-                } px-8 py-3.5 text-xs uppercase tracking-widest font-bold ${
-                  lang === 'ar' ? 'font-cairo' : ''
-                }`}
-              >
-                {trackLoading ? (
-                  <>
-                    <RefreshCw className="h-4 w-4 animate-spin" />
-                    <span>{lang === 'ar' ? 'جاري البحث...' : 'Recherche...'}</span>
-                  </>
-                ) : (
-                  <>
-                    <Truck className="h-4 w-4" />
-                    <span>{lang === 'ar' ? 'تتبع الطلب' : 'Suivre la livraison'}</span>
-                  </>
-                )}
-              </button>
-            </div>
-
-            {/* Error Message */}
-            {trackError && (
-              <p className={`text-red-700 text-xs mt-3 ${lang === 'ar' ? 'text-right font-cairo font-semibold' : 'text-left font-medium'}`}>
-                {trackError}
+        {/* VIEW 2: ORDER TRACKING (SUIVI) */}
+        {activeTab === 'suivi' && (
+          <div className="max-w-3xl mx-auto space-y-8">
+            <div className="text-center space-y-3">
+              <ClipboardList className="h-8 w-8 text-[#C18D5D] mx-auto animate-pulse" />
+              <h1 className="font-display text-2xl sm:text-3xl font-extrabold text-[#2C3E2E] dark:text-[#FAF9F5]">
+                تتبع طلبيتكِ الخاصة
+              </h1>
+              <p className="text-xs sm:text-sm text-slate-500">
+                أدخلي رقم الهاتف الخاص بكِ أو رقم الطلب المرجعي لمتابعة حالة شحنتكِ وموعد التوصيل الدقيق بكل سرية وخصوصية.
               </p>
-            )}
-          </div>
+            </div>
 
-          {/* Tracked Order Details Panel */}
-          <AnimatePresence mode="wait">
-            {trackedOrder ? (
-              <motion.div
-                initial={{ opacity: 0, y: 15 }}
-                animate={{ opacity: 1, y: 0 }}
-                exit={{ opacity: 0, y: -15 }}
-                transition={{ duration: 0.4 }}
-                className={`space-y-6 ${lang === 'ar' ? 'text-right' : 'text-left'}`}
-              >
-                {/* Status Header Block */}
-                <div className="bg-[#2C3E2E] text-[#F9F7F2] p-6 rounded-sm flex flex-col md:flex-row justify-between items-start md:items-center gap-4 relative overflow-hidden">
-                  <div className="absolute top-0 right-0 h-40 w-40 rounded-full bg-[#C18D5D]/5 -mr-10 -mt-10 blur-2xl" />
-                  <div className="space-y-1 relative z-10">
-                    <div className="flex items-center gap-2 text-xs text-[#C18D5D] uppercase tracking-widest font-bold">
-                      <Clock className="h-3.5 w-3.5" />
-                      <span>
-                        {lang === 'ar' ? 'مرجع الطلب :' : 'Référence de Commande :'} #{trackedOrder.id}
-                      </span>
-                    </div>
-                    <h3 className={`font-serif text-xl sm:text-2xl font-bold ${lang === 'ar' ? 'font-amiri' : ''}`}>
-                      {lang === 'ar' ? 'تحديث مباشر للشحنة' : 'Statut de livraison en direct'}
-                    </h3>
-                  </div>
-
-                  {/* Status Badge */}
-                  <div className="rounded-sm bg-[#FAF9F5] border-l-4 border-[#C18D5D] px-4 py-2.5 text-xs text-[#2C3E2E] font-bold uppercase tracking-wider relative z-10 flex items-center gap-2">
-                    <span className="h-2 w-2 rounded-full bg-emerald-600 animate-pulse" />
-                    <span className={lang === 'ar' ? 'font-cairo' : ''}>
-                      {lang === 'ar' ? 'الحالة الحالية: ' : 'Statut : '} 
-                      {trackedOrder.statut === 'En attente' ? (lang === 'ar' ? 'قيد الانتظار' : 'En attente') :
-                       trackedOrder.statut === 'En cours' || trackedOrder.statut === 'Préparation' ? (lang === 'ar' ? 'قيد التحضير' : 'En préparation') :
-                       trackedOrder.statut === 'Expédiée' || trackedOrder.statut === 'En cours de livraison' ? (lang === 'ar' ? 'جاري التوصيل' : 'En cours de livraison') :
-                       trackedOrder.statut === 'Livrée' || trackedOrder.statut === 'Livré' ? (lang === 'ar' ? 'تم التسليم' : 'Livrée') : 
-                       (trackedOrder.statut || (lang === 'ar' ? 'تم التأكيد' : 'Confirmée'))}
-                    </span>
-                  </div>
+            {/* Tracking Input Bar */}
+            <div className={`${themeBgCard} p-6 rounded-sm border ${themeBorder} shadow-md`}>
+              <div className="flex flex-col sm:flex-row gap-3">
+                <div className="relative flex-1">
+                  <Search className="absolute right-4 top-1/2 -translate-y-1/2 h-4 w-4 text-slate-400" />
+                  <input
+                    type="text"
+                    value={trackRef}
+                    onChange={(e) => setTrackRef(e.target.value)}
+                    onKeyPress={(e) => e.key === 'Enter' && handleTrackOrder()}
+                    placeholder="أدخلي رقم الهاتف أو الرقم المرجعي للطلب..."
+                    className="w-full pr-11 pl-4 py-3 text-sm rounded-sm border border-[#2C3E2E]/15 focus:border-[#C18D5D] bg-[#F9F7F2]/30 dark:bg-[#141E15]/30 focus:outline-none focus:ring-0 text-right"
+                  />
                 </div>
+                <button
+                  onClick={() => handleTrackOrder()}
+                  disabled={trackLoading}
+                  className="px-6 py-3 min-h-[48px] bg-[#2C3E2E] hover:bg-[#C18D5D] text-white text-xs sm:text-sm font-bold rounded-sm transition-all duration-300 disabled:bg-slate-300 cursor-pointer flex items-center justify-center gap-2"
+                >
+                  {trackLoading ? <RefreshCw className="h-4 w-4 animate-spin" /> : null}
+                  <span>تتبع حالة الشحن</span>
+                </button>
+              </div>
 
-                {/* Timeline Stepper Section */}
-                <div className={`${themeBgWhite} border ${themeBorderMain} rounded-sm p-6 sm:p-8 transition-colors duration-300`}>
-                  <h4 className={`text-xs uppercase tracking-[0.2em] font-bold ${themeTextMuted} mb-8 ${lang === 'ar' ? 'font-cairo' : ''}`}>
-                    {lang === 'ar' ? 'مراحل التوصيل' : 'Étapes de livraison'}
-                  </h4>
+              {trackError && (
+                <p className="text-xs text-rose-500 mt-3 text-right bg-rose-50 dark:bg-rose-950/20 p-2.5 rounded-sm border border-rose-100 dark:border-rose-900/35">
+                  ⚠️ {trackError}
+                </p>
+              )}
+            </div>
 
-                  {/* Desktop/Mobile Stepper */}
-                  <div className="relative">
-                    {/* Stepper horizontal line background */}
-                    <div className="absolute top-5 left-10 right-10 h-0.5 bg-gray-200 hidden md:block" />
-                    
-                    {/* Active line filler */}
-                    <div 
-                      className="absolute top-5 left-10 h-0.5 bg-[#C18D5D] transition-all duration-700 hidden md:block" 
-                      style={{ 
-                        width: 
-                          trackedOrder.statut === 'En attente' ? '0%' :
-                          trackedOrder.statut === 'En cours' || trackedOrder.statut === 'Préparation' ? '33.33%' :
-                          trackedOrder.statut === 'Expédiée' || trackedOrder.statut === 'En cours de livraison' ? '66.66%' :
-                          trackedOrder.statut === 'Livrée' || trackedOrder.statut === 'Livré' ? '100%' : '0%'
-                      }} 
-                    />
-
-                    {/* Timeline items container */}
-                    <div className="grid grid-cols-1 md:grid-cols-4 gap-8 md:gap-4 relative z-10">
-                      
-                      {/* Step 1: Reçue */}
-                      <div className="flex md:flex-col items-start md:items-center text-left md:text-center gap-4 md:gap-3">
-                        <div className={`h-10 w-10 rounded-full flex items-center justify-center shrink-0 border-2 font-bold font-mono transition-colors duration-500 ${
-                          trackedOrder.statut !== '' 
-                            ? 'bg-[#2C3E2E] border-[#2C3E2E] text-white font-bold' 
-                            : `${isNightMode ? 'bg-[#1D2A1E] border-emerald-950 text-gray-500' : 'bg-white border-gray-200 text-gray-400'}`
-                        }`}>
-                          ✓
-                        </div>
-                        <div className="space-y-0.5">
-                          <p className={`text-xs font-bold ${themeTextMain} ${lang === 'ar' ? 'font-cairo' : ''}`}>
-                            {lang === 'ar' ? '1. تم استلام الطلب' : '1. Commande Reçue'}
-                          </p>
-                          <p className={`text-[10px] ${themeTextMuted} max-w-[160px] leading-relaxed mx-auto ${lang === 'ar' ? 'font-cairo' : ''}`}>
-                            {lang === 'ar' ? 'تم تسجيل طلبك وتأكيده في نظامنا.' : 'Nous avons bien enregistré votre commande.'}
-                          </p>
-                        </div>
-                      </div>
-
-                      {/* Step 2: Préparation */}
-                      <div className="flex md:flex-col items-start md:items-center text-left md:text-center gap-4 md:gap-3">
-                        <div className={`h-10 w-10 rounded-full flex items-center justify-center shrink-0 border-2 font-bold font-mono transition-colors duration-500 ${
-                          trackedOrder.statut !== 'En attente'
-                            ? 'bg-[#2C3E2E] border-[#2C3E2E] text-white font-bold' 
-                            : `${isNightMode ? 'bg-[#1D2A1E] border-emerald-950 text-gray-500' : 'bg-white border-gray-200 text-gray-400'}`
-                        }`}>
-                          {trackedOrder.statut !== 'En attente' ? '✓' : '2'}
-                        </div>
-                        <div className="space-y-0.5">
-                          <p className={`text-xs font-bold ${themeTextMain} ${lang === 'ar' ? 'font-cairo' : ''}`}>
-                            {lang === 'ar' ? '2. قيد التحضير' : '2. Préparation'}
-                          </p>
-                          <p className={`text-[10px] ${themeTextMuted} max-w-[160px] leading-relaxed mx-auto ${lang === 'ar' ? 'font-cairo' : ''}`}>
-                            {lang === 'ar' ? 'توضيب وتجهيز المنتجات الطبيعية في ورشتنا.' : 'Vos produits naturels sont soigneusement emballés.'}
-                          </p>
-                        </div>
-                      </div>
-
-                      {/* Step 3: Livraison */}
-                      <div className="flex md:flex-col items-start md:items-center text-left md:text-center gap-4 md:gap-3">
-                        <div className={`h-10 w-10 rounded-full flex items-center justify-center shrink-0 border-2 font-bold font-mono transition-colors duration-500 ${
-                          trackedOrder.statut === 'Expédiée' || trackedOrder.statut === 'En cours de livraison' || trackedOrder.statut === 'Livrée' || trackedOrder.statut === 'Livré'
-                            ? 'bg-[#2C3E2E] border-[#2C3E2E] text-white font-bold' 
-                            : `${isNightMode ? 'bg-[#1D2A1E] border-emerald-950 text-gray-500' : 'bg-white border-gray-200 text-gray-400'}`
-                        }`}>
-                          {trackedOrder.statut === 'Expédiée' || trackedOrder.statut === 'En cours de livraison' || trackedOrder.statut === 'Livrée' || trackedOrder.statut === 'Livré' ? '✓' : '3'}
-                        </div>
-                        <div className="space-y-0.5">
-                          <p className={`text-xs font-bold ${themeTextMain} ${lang === 'ar' ? 'font-cairo' : ''}`}>
-                            {lang === 'ar' ? '3. قيد التوصيل' : '3. En cours de livraison'}
-                          </p>
-                          <p className={`text-[10px] ${themeTextMuted} max-w-[160px] leading-relaxed mx-auto ${lang === 'ar' ? 'font-cairo' : ''}`}>
-                            {lang === 'ar' ? 'الطلب مع الموزع للتسليم في مدينتكم.' : 'Le colis est en route avec notre livreur.'}
-                          </p>
-                        </div>
-                      </div>
-
-                      {/* Step 4: Livrée */}
-                      <div className="flex md:flex-col items-start md:items-center text-left md:text-center gap-4 md:gap-3">
-                        <div className={`h-10 w-10 rounded-full flex items-center justify-center shrink-0 border-2 font-bold font-mono transition-colors duration-500 ${
-                          trackedOrder.statut === 'Livrée' || trackedOrder.statut === 'Livré'
-                            ? 'bg-[#C18D5D] border-[#C18D5D] text-white font-bold' 
-                            : `${isNightMode ? 'bg-[#1D2A1E] border-emerald-950 text-gray-500' : 'bg-white border-gray-200 text-gray-400'}`
-                        }`}>
-                          {trackedOrder.statut === 'Livrée' || trackedOrder.statut === 'Livré' ? '★' : '4'}
-                        </div>
-                        <div className="space-y-0.5">
-                          <p className={`text-xs font-bold ${themeTextMain} ${lang === 'ar' ? 'font-cairo' : ''}`}>
-                            {lang === 'ar' ? '4. تم التسليم' : '4. Livrée'}
-                          </p>
-                          <p className={`text-[10px] ${themeTextMuted} max-w-[160px] leading-relaxed mx-auto ${lang === 'ar' ? 'font-cairo' : ''}`}>
-                            {lang === 'ar' ? 'تم تسليم الطرد ودفع قيمة الطلب نقداً.' : 'Colis remis en main propre. Merci de votre confiance !'}
-                          </p>
-                        </div>
-                      </div>
-
-                    </div>
-                  </div>
-
-                  {/* Estimated Delivery Time */}
-                  <div className={`mt-8 pt-5 border-t ${themeBorderLight} flex flex-col sm:flex-row items-center justify-between gap-3`}>
-                    <div className="flex items-center gap-2">
-                      <Clock className="h-4 w-4 text-[#C18D5D]" />
-                      <span className={`text-xs font-bold ${themeTextMain} ${lang === 'ar' ? 'font-cairo' : ''}`}>
-                        {lang === 'ar' ? 'موعد التسليم المتوقع :' : 'Date de livraison estimée :'}
-                      </span>
-                    </div>
-                    <div className={`text-xs px-3.5 py-1.5 rounded-sm font-semibold tracking-wide ${isNightMode ? 'bg-[#1D2A1E] text-[#C18D5D]' : 'bg-[#FAF9F5] text-[#2C3E2E] border border-[#2C3E2E]/10 font-medium'}`}>
-                      {(() => {
-                        const estimate = getEstimatedDelivery(trackedOrder.created_at, trackedOrder.statut);
-                        return lang === 'ar' ? estimate.ar : estimate.fr;
-                      })()}
-                    </div>
-                  </div>
-                </div>
-
-                {/* Grid layout for Customer details and ordered products */}
-                <div className="grid grid-cols-1 md:grid-cols-12 gap-6">
+            {/* Dynamic Tracking Status Block */}
+            <AnimatePresence mode="wait">
+              {trackedOrder && (
+                <motion.div
+                  initial={{ opacity: 0, y: 15 }}
+                  animate={{ opacity: 1, y: 0 }}
+                  exit={{ opacity: 0, y: 15 }}
+                  className={`rounded-sm border ${themeBorder} ${themeBgCard} p-6 sm:p-8 shadow-xl space-y-8`}
+                >
                   
-                  {/* Left Column: Products Details */}
-                  <div className={`md:col-span-7 ${themeBgWhite} border ${themeBorderMain} rounded-sm p-6 flex flex-col justify-between transition-colors duration-300`}>
-                    <div className="space-y-4">
-                      <h4 className={`text-xs uppercase tracking-[0.2em] font-bold ${themeTextMain} pb-3 border-b ${themeBorderMain} flex items-center gap-2 ${lang === 'ar' ? 'font-cairo' : ''}`}>
-                        <ShoppingBag className="h-4 w-4 text-[#C18D5D]" />
-                        <span>{lang === 'ar' ? 'تفاصيل السلة والمنتجات' : 'Détails des produits'}</span>
-                      </h4>
+                  {/* Tracking Header Details */}
+                  <div className="flex flex-col sm:flex-row justify-between items-start sm:items-center pb-6 border-b border-slate-200/50 dark:border-slate-800/50 gap-4 text-right">
+                    <div>
+                      <span className="text-[10px] text-slate-400 uppercase font-bold block">تاريخ التسجيل والمتابعة</span>
+                      <span className="text-xs sm:text-sm font-semibold flex items-center gap-1.5 mt-1 justify-end">
+                        <Calendar className="h-4 w-4 text-[#C18D5D]" />
+                        {trackedOrder.created_at ? new Date(trackedOrder.created_at).toLocaleDateString('ar-TN', { weekday: 'long', year: 'numeric', month: 'long', day: 'numeric' }) : "تاريخ مجهول"}
+                      </span>
+                    </div>
+                    <div>
+                      <span className="text-[10px] text-[#C18D5D] font-bold block uppercase">مرجع الطلبية الرسمي</span>
+                      <h3 className="font-display font-extrabold text-lg text-[#2C3E2E] dark:text-[#FAF9F5] mt-1">
+                        #{trackedOrder.id}
+                      </h3>
+                    </div>
+                  </div>
+
+                  {/* Stepper Timeline Progress */}
+                  <div className="py-4">
+                    <div className="grid grid-cols-1 md:grid-cols-4 gap-6 relative">
                       
-                      <div className="space-y-3 font-sans">
-                        {trackedOrder.details_produits.split(/,|\n/).map((item, idx) => {
-                          const cleanItem = item.trim();
-                          if (!cleanItem) return null;
-                          return (
-                            <div key={idx} className={`flex justify-between items-center text-xs ${themeTextMuted} py-1 border-b border-dashed ${themeBorderLight} last:border-0`}>
-                              <span className={`font-medium ${themeTextMain}`}>{cleanItem}</span>
-                              <span className="text-[10px] text-[#C18D5D] font-bold uppercase">Bio</span>
-                            </div>
-                          );
-                        })}
-                      </div>
-                    </div>
-
-                    <div className={`mt-8 pt-4 border-t ${themeBorderMain} flex justify-between items-baseline`}>
-                      <span className={`text-xs ${themeTextMuted} font-bold uppercase tracking-wider ${lang === 'ar' ? 'font-cairo' : ''}`}>
-                        {lang === 'ar' ? 'طريقة الدفع :' : 'Mode de Paiement :'}
-                      </span>
-                      <span className={`text-xs ${themeTextMain} font-bold ${lang === 'ar' ? 'font-cairo' : ''}`}>
-                        {lang === 'ar' ? 'نقداً عند الاستلام' : 'Espèces à la livraison'}
-                      </span>
-                    </div>
-                  </div>
-
-                  {/* Right Column: Customer info */}
-                  <div className={`md:col-span-5 ${themeBgWhite} border ${themeBorderMain} rounded-sm p-6 space-y-4 transition-colors duration-300`}>
-                    <h4 className={`text-xs uppercase tracking-[0.2em] font-bold ${themeTextMain} pb-3 border-b ${themeBorderMain} flex items-center gap-2 ${lang === 'ar' ? 'font-cairo' : ''}`}>
-                      <User className="h-4 w-4 text-[#C18D5D]" />
-                      <span>{lang === 'ar' ? 'بيانات التوصيل' : 'Informations de livraison'}</span>
-                    </h4>
-
-                    <div className="space-y-3 font-sans text-xs">
-                      <div className="space-y-1">
-                        <span className={`text-[10px] uppercase ${isNightMode ? 'text-[#FAF9F5]/40' : 'text-[#5A5A40]/70'} font-bold tracking-wider block`}>
-                          {lang === 'ar' ? 'الاسم واللقب :' : 'Nom du destinataire :'}
-                        </span>
-                        <p className={`font-bold ${themeTextMain}`}>{trackedOrder.nom_client}</p>
-                      </div>
-
-                      <div className="space-y-1">
-                        <span className={`text-[10px] uppercase ${isNightMode ? 'text-[#FAF9F5]/40' : 'text-[#5A5A40]/70'} font-bold tracking-wider block`}>
-                          {lang === 'ar' ? 'رقم الهاتف :' : 'Téléphone :'}
-                        </span>
-                        <p className={`font-mono font-bold ${themeTextMain}`}>{trackedOrder.telephone}</p>
-                      </div>
-
-                      <div className="space-y-1">
-                        <span className={`text-[10px] uppercase ${isNightMode ? 'text-[#FAF9F5]/40' : 'text-[#5A5A40]/70'} font-bold tracking-wider block`}>
-                          {lang === 'ar' ? 'عنوان التوصيل :' : 'Adresse de livraison :'}
-                        </span>
-                        <p className={`leading-relaxed font-medium ${themeTextMuted}`}>{trackedOrder.adresse}</p>
-                      </div>
-
-                      {trackedOrder.created_at && (
-                        <div className={`space-y-1 pt-1.5 border-t border-dotted ${themeBorderMain}`}>
-                          <span className={`text-[10px] uppercase ${isNightMode ? 'text-[#FAF9F5]/40' : 'text-[#5A5A40]/70'} font-bold tracking-wider block`}>
-                            {lang === 'ar' ? 'تاريخ الطلب :' : 'Date de commande :'}
-                          </span>
-                          <p className="text-gray-500 flex items-center gap-1 text-[11px]">
-                            <Calendar className="h-3 w-3 text-[#C18D5D]" />
-                            <span>{new Date(trackedOrder.created_at).toLocaleDateString('fr-FR', { day: 'numeric', month: 'long', year: 'numeric' })}</span>
-                          </p>
+                      {/* Step 1: Registered */}
+                      <div className="flex items-start gap-3 relative z-10">
+                        <div className="h-8 w-8 rounded-full bg-[#2C3E2E] text-[#F9F7F2] font-bold flex items-center justify-center text-xs border border-[#C18D5D]">✓</div>
+                        <div className="text-right">
+                          <h4 className="text-xs font-bold text-[#2C3E2E] dark:text-[#FAF9F5]">تم تأكيد الطلب</h4>
+                          <p className="text-[10px] text-slate-400 mt-1">تمت مراجعة طلبكِ وإدراجه بنجاح بنظام الشحن.</p>
                         </div>
-                      )}
+                      </div>
+
+                      {/* Step 2: Preparing */}
+                      <div className="flex items-start gap-3 relative z-10">
+                        <div className={`h-8 w-8 rounded-full font-bold flex items-center justify-center text-xs border ${
+                          ['En attente', 'Préparation', 'Expédiée', 'En cours de livraison', 'Livrée', 'En préparation'].includes(trackedOrder.statut)
+                            ? 'bg-[#2C3E2E] text-white border-[#C18D5D]'
+                            : 'bg-slate-100 text-slate-400 border-slate-200'
+                        }`}>
+                          {['Préparation', 'Expédiée', 'En cours de livraison', 'Livrée', 'En préparation'].includes(trackedOrder.statut) ? "✓" : "2"}
+                        </div>
+                        <div className="text-right">
+                          <h4 className="text-xs font-bold text-[#2C3E2E] dark:text-[#FAF9F5]">التجهيز والتوضيب</h4>
+                          <p className="text-[10px] text-slate-400 mt-1">نقوم بصب وتغليف طلبيتكِ بعناية من ورشتنا بالمهدية.</p>
+                        </div>
+                      </div>
+
+                      {/* Step 3: Shipping */}
+                      <div className="flex items-start gap-3 relative z-10">
+                        <div className={`h-8 w-8 rounded-full font-bold flex items-center justify-center text-xs border ${
+                          ['Expédiée', 'En cours de livraison', 'Livrée', 'Expédié'].includes(trackedOrder.statut)
+                            ? 'bg-[#2C3E2E] text-white border-[#C18D5D]'
+                            : 'bg-slate-100 text-slate-400 border-slate-200'
+                        }`}>
+                          {['Livrée'].includes(trackedOrder.statut) ? "✓" : "3"}
+                        </div>
+                        <div className="text-right">
+                          <h4 className="text-xs font-bold text-[#2C3E2E] dark:text-[#FAF9F5]">شحن جاري</h4>
+                          <p className="text-[10px] text-slate-400 mt-1">الطرد في عهدة المندوب وسيتم الاتصال بكِ هاتفياً.</p>
+                        </div>
+                      </div>
+
+                      {/* Step 4: Delivered */}
+                      <div className="flex items-start gap-3 relative z-10">
+                        <div className={`h-8 w-8 rounded-full font-bold flex items-center justify-center text-xs border ${
+                          trackedOrder.statut === 'Livrée' || trackedOrder.statut === 'Livré'
+                            ? 'bg-emerald-700 text-white border-emerald-500'
+                            : 'bg-slate-100 text-slate-400 border-slate-200'
+                        }`}>
+                          {trackedOrder.statut === 'Livrée' || trackedOrder.statut === 'Livré' ? "✓" : "4"}
+                        </div>
+                        <div className="text-right">
+                          <h4 className="text-xs font-bold text-[#2C3E2E] dark:text-[#FAF9F5]">تم التسليم</h4>
+                          <p className="text-[10px] text-slate-400 mt-1">تم تسليم الطرد ودفع القيمة نقداً. نتمنى لكِ تجربة ممتازة!</p>
+                        </div>
+                      </div>
+
                     </div>
                   </div>
 
-                </div>
+                  {/* Order Items Receipt Summary */}
+                  <div className="bg-[#FAF9F5]/30 dark:bg-[#141E15]/30 p-5 rounded-sm space-y-4 border border-dashed border-[#C18D5D]/20 text-right">
+                    <h4 className="font-display font-bold text-sm text-[#C18D5D] pb-2 border-b border-emerald-900/10 flex items-center gap-1.5 justify-end">
+                      <span>تفاصيل المستحضرات المطلوبة</span>
+                      <ShoppingBag className="h-4.5 w-4.5" />
+                    </h4>
+                    
+                    <div className="space-y-2.5">
+                      <div className="flex justify-between items-center text-xs sm:text-sm">
+                        <span className="font-semibold text-slate-600 dark:text-slate-300">
+                          {trackedOrder.details_produits || "مستحضرات تجميل طبيعية متنوعة"}
+                        </span>
+                        <span className="text-slate-400 font-medium">المنتجات :</span>
+                      </div>
+                      
+                      <div className="flex justify-between items-center text-xs sm:text-sm">
+                        <span className="font-bold text-emerald-700 dark:text-emerald-400">الدفع نقداً عند الاستلام (كاش)</span>
+                        <span className="text-slate-400 font-medium">طريقة الدفع :</span>
+                      </div>
+                    </div>
+                  </div>
 
-                {/* Help Contact Box with Sarra */}
-                <div className={`${isNightMode ? 'bg-[#1D2A1E]' : 'bg-[#FAF9F5]'} border ${themeBorderMain} p-6 text-center space-y-4 rounded-sm`}>
-                  <p className={`text-xs ${themeTextMuted} leading-relaxed max-w-xl mx-auto ${lang === 'ar' ? 'font-cairo' : ''}`}>
-                    {lang === 'ar' 
-                      ? 'هل تريد تعديل العنوان أو الاستفسار عن التوصيل؟ يمكنك التحدث مباشرة مع مستشارتنا الذكية سارة لمساعدتك فورا.'
-                      : 'Besoin de modifier l\'adresse de livraison ou de poser une question concernant votre colis ? Notre conseillère virtuelle Sarra est à votre entière disposition.'}
+                  {/* Customer Information Block */}
+                  <div className="grid grid-cols-1 md:grid-cols-2 gap-6 text-right pt-2">
+                    <div className="space-y-1.5">
+                      <span className="text-[10px] text-slate-400 block font-bold uppercase">بيانات العميل المستلم</span>
+                      <p className="text-xs sm:text-sm font-semibold flex items-center gap-1.5 justify-end">
+                        <span>{trackedOrder.nom_client}</span>
+                        <User className="h-4.5 w-4.5 text-slate-400" />
+                      </p>
+                      <p className="text-xs text-slate-500 flex items-center gap-1.5 justify-end mt-1">
+                        <span>{trackedOrder.telephone}</span>
+                        <Phone className="h-4 w-4 text-slate-400" />
+                      </p>
+                    </div>
+
+                    <div className="space-y-1.5">
+                      <span className="text-[10px] text-slate-400 block font-bold uppercase">عنوان التوصيل والشحن</span>
+                      <p className="text-xs sm:text-sm font-semibold flex items-center gap-1.5 justify-end leading-relaxed">
+                        <span>{trackedOrder.adresse}</span>
+                        <MapPin className="h-4.5 w-4.5 text-[#C18D5D]" />
+                      </p>
+                    </div>
+                  </div>
+
+                  {/* Contact Sarra / Edit order notice */}
+                  <div className="pt-6 border-t border-slate-200/50 dark:border-slate-800/50 flex flex-col sm:flex-row items-center justify-between gap-4">
+                    <p className="text-xs text-slate-500 text-center sm:text-right leading-relaxed max-w-md">
+                      هل ترغبين في تعديل عنوان التوصيل، تغيير المنتجات، أو الاستفسار عن موعد دقيق لوصول المندوب؟ سارة مستشارتنا الذكية هنا لمساعدتكِ فوراً.
+                    </p>
+                    
+                    <button
+                      onClick={() => handleAskSarraAboutOrder(trackedOrder.id)}
+                      className="px-5 py-2.5 bg-transparent border border-[#C18D5D] hover:bg-[#C18D5D]/10 text-[#C18D5D] text-xs font-bold rounded-sm transition-all duration-300 flex items-center gap-1.5 cursor-pointer"
+                    >
+                      <MessageSquare className="h-4 w-4" />
+                      <span>اسألي سارة عن هذه الطلبية</span>
+                    </button>
+                  </div>
+
+                </motion.div>
+              )}
+            </AnimatePresence>
+
+          </div>
+        )}
+
+        {/* VIEW 3: ADMIN/MERCHANT DASHBOARD */}
+        {activeTab === 'admin' && (
+          !isAdminAuthenticated ? (
+            <Login onLoginSuccess={handleLoginSuccess} isNightMode={isNightMode} />
+          ) : (
+            <div className="space-y-8">
+              <div className="flex flex-col sm:flex-row justify-between items-start sm:items-center gap-4 text-right">
+                <div>
+                  <h1 className="font-display text-2xl sm:text-3xl font-extrabold text-[#2C3E2E] dark:text-[#FAF9F5] flex items-center gap-2 flex-row-reverse sm:justify-start">
+                    <span>لوحة التحكم وإدارة الطلبات</span>
+                    {newOrdersCount > 0 && (
+                      <span className="relative flex h-3 w-3 sm:mr-2">
+                        <span className="animate-ping absolute inline-flex h-full w-full rounded-full bg-amber-400 opacity-75"></span>
+                        <span className="relative inline-flex rounded-full h-3 w-3 bg-amber-500"></span>
+                      </span>
+                    )}
+                  </h1>
+                  <p className="text-xs text-slate-500 mt-1">
+                    سجل المبيعات والطلبيات المسجلة للعملاء تلقائياً بواسطة المستشارة الذكية سارة (IA).
                   </p>
+                </div>
+                
+                <div className="flex items-center gap-2 w-full sm:w-auto flex-wrap sm:flex-nowrap">
+                  <button
+                    onClick={handleAdminLogout}
+                    className="px-4 py-2.5 bg-rose-600 hover:bg-rose-700 text-white text-xs font-bold rounded-sm transition-all flex items-center gap-1.5 cursor-pointer shadow"
+                  >
+                    <Unlock className="h-4 w-4" />
+                    <span>تسجيل الخروج</span>
+                  </button>
+
                   <button
                     onClick={() => {
-                      // Trigger Sarra chatbot order query
-                      const promptText = lang === 'ar' 
-                        ? `أريد الاستفسار عن طلبي رقم #${trackedOrder.id}`
-                        : `Bonjour Sarra, je souhaite poser une question sur ma commande #${trackedOrder.id}`;
-                      const event = new CustomEvent('chat-order', { detail: { customPrompt: promptText } });
-                      window.dispatchEvent(event);
+                      fetchOrders();
+                      setNewOrdersCount(0);
+                      setAlertMsg({ type: 'success', text: 'تم تحديث ومزامنة سجل الطلبات مباشرة من سوبابيس بنجاح!' });
+                      setTimeout(() => setAlertMsg(null), 5000);
                     }}
-                    className={`rounded-sm bg-[#C18D5D] hover:bg-[#b07d4e] text-white px-6 py-2.5 text-xs uppercase tracking-widest font-bold transition-all shadow-xs cursor-pointer inline-flex items-center gap-2 ${
-                      lang === 'ar' ? 'font-cairo' : ''
-                    }`}
+                    disabled={loadingOrders}
+                    className="px-4 py-2.5 bg-[#2C3E2E] hover:bg-[#C18D5D] text-white text-xs font-bold rounded-sm transition-all flex items-center gap-1.5 cursor-pointer shadow"
                   >
-                    <MessageSquare className="h-3.5 w-3.5" />
-                    <span>{lang === 'ar' ? 'اسأل سارة عن هذا الطلب' : 'Parler de cette commande à Sarra'}</span>
+                    <RefreshCw className={`h-4 w-4 ${loadingOrders ? 'animate-spin' : ''}`} />
+                    <span>تحديث السجل</span>
                   </button>
                 </div>
-
-              </motion.div>
-            ) : (
-              <motion.div
-                initial={{ opacity: 0 }}
-                animate={{ opacity: 1 }}
-                exit={{ opacity: 0 }}
-                className={`${isNightMode ? 'bg-[#1D2A1E]' : 'bg-[#FAF9F5]'} border ${themeBorderMain} rounded-sm p-12 text-center text-gray-400 font-sans flex flex-col items-center justify-center space-y-3`}
-              >
-                <Truck className="h-12 w-12 text-[#C18D5D]/40 stroke-1 animate-bounce" />
-                <p className={`text-sm ${themeTextMuted} ${lang === 'ar' ? 'font-cairo font-semibold' : 'font-medium'}`}>
-                  {lang === 'ar' ? 'الرجاء إدخال رقم الطلب للبحث وتتبع الشحنة.' : 'Aucun suivi actif. Saisissez une référence de commande ci-dessus.'}
-                </p>
-              </motion.div>
-            )}
-          </AnimatePresence>
-
-          {/* Elegant Footer match */}
-          <footer className={`h-16 mt-12 border-t ${themeBorderLight} flex flex-col md:flex-row items-center justify-between px-12 ${themeBgWhite} text-[10px] uppercase tracking-widest ${themeTextMuted} py-4 md:py-0 transition-colors duration-300`}>
-            <span>{lang === 'ar' ? 'توصيل كامل التراب التونسي' : 'Livraison partout en Tunisie'}</span>
-            <span>{lang === 'ar' ? 'الدفع عند الاستلام' : 'Paiement en espèces à la livraison'}</span>
-            <span>© {new Date().getFullYear()} Pure Glow MH</span>
-          </footer>
-        </main>
-      ) : (
-        /* Merchant Orders Log Tracker Page (Dashboard) */
-        <main className="mx-auto max-w-7xl px-6 py-12 sm:px-8 lg:px-12">
-          
-          {/* Header Dashboard section */}
-          <div className="mb-8 flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4">
-            <div>
-              <span className="text-xs uppercase tracking-[0.3em] font-bold text-[#C18D5D]">Système d'administration</span>
-              <h2 className={`font-serif text-3xl font-bold ${themeTextMain} mt-1 flex items-center`}>
-                <ClipboardList className="h-8 w-8 mr-2 text-[#C18D5D]" />
-                Journal des Ventes &amp; Commandes
-              </h2>
-            </div>
-            
-            <div className="flex items-center gap-3">
-              <button
-                onClick={fetchOrders}
-                className={`inline-flex items-center justify-center rounded-sm ${themeBgWhite} border ${themeBorderMain} px-5 py-2.5 text-xs uppercase tracking-wider font-bold ${themeTextMain} hover:opacity-85 transition-colors cursor-pointer`}
-              >
-                <RefreshCw className="h-3.5 w-3.5 mr-2" />
-                {lang === 'ar' ? 'تحديث' : 'Rafraîchir'}
-              </button>
-              <button
-                onClick={handleAdminLogout}
-                className="inline-flex items-center justify-center rounded-sm bg-red-700 hover:bg-red-800 text-white px-5 py-2.5 text-xs uppercase tracking-wider font-bold transition-colors cursor-pointer"
-              >
-                <LogOut className="h-3.5 w-3.5 mr-2" />
-                {lang === 'ar' ? 'خروج' : 'Déconnexion'}
-              </button>
-            </div>
-          </div>
-
-          {/* Quick Metrics Cards */}
-          <div className="grid grid-cols-1 gap-6 sm:grid-cols-3 mb-10">
-            
-            <div className={`border ${themeBorderMain} ${themeBgWhite} p-6 transition-colors duration-300`}>
-              <span className={`text-[10px] font-bold ${themeTextMuted} uppercase tracking-widest block`}>Commandes IA Reçues</span>
-              <div className="flex items-baseline space-x-2 mt-2">
-                <span className={`text-3xl font-serif font-bold ${themeTextMain}`}>{orders.length}</span>
-                <span className="text-[10px] text-[#C18D5D] bg-[#C18D5D]/10 px-2 py-0.5 rounded font-bold uppercase tracking-wider">Live</span>
               </div>
-            </div>
 
-            <div className={`border ${themeBorderMain} ${themeBgWhite} p-6 transition-colors duration-300`}>
-              <span className={`text-[10px] font-bold ${themeTextMuted} uppercase tracking-widest block`}>Chiffre d'Affaires Estimé</span>
-              <div className="flex items-baseline space-x-2 mt-2">
-                <span className={`text-3xl font-serif font-bold ${themeTextMain}`}>{(orders.length * 25.000).toFixed(3)} TND</span>
-              </div>
-            </div>
+            {/* Real-time background update notification banner */}
+            <AnimatePresence>
+              {newOrdersCount > 0 && (
+                <motion.div 
+                  initial={{ opacity: 0, y: -10, height: 0 }}
+                  animate={{ opacity: 1, y: 0, height: 'auto' }}
+                  exit={{ opacity: 0, y: -10, height: 0 }}
+                  className="bg-amber-500/10 dark:bg-amber-500/5 border border-amber-500/30 dark:border-amber-500/20 p-4 rounded-sm flex flex-col sm:flex-row justify-between items-start sm:items-center text-right shadow-xs gap-3 overflow-hidden"
+                >
+                  <div className="flex items-center gap-3 flex-row-reverse">
+                    <span className="relative flex h-3 w-3 shrink-0">
+                      <span className="animate-ping absolute inline-flex h-full w-full rounded-full bg-amber-400 opacity-75"></span>
+                      <span className="relative inline-flex rounded-full h-3 w-3 bg-amber-500"></span>
+                    </span>
+                    <div className="text-xs space-y-0.5">
+                      <span className="text-amber-800 dark:text-amber-300 font-extrabold block">
+                        تنبيه: تم رصد طلبيات جديدة!
+                      </span>
+                      <span className="text-amber-700 dark:text-amber-400/90 font-medium">
+                        التقط تحديث الخلفية {newOrdersCount} طلبية جديدة من سارة (الذكاء الاصطناعي). تم تضمينها بنجاح في السجل أدناه.
+                      </span>
+                    </div>
+                  </div>
+                  <button 
+                    onClick={() => setNewOrdersCount(0)}
+                    className="px-3 py-1.5 text-[10px] bg-amber-500/20 hover:bg-amber-500/30 text-amber-950 dark:text-amber-300 rounded-sm font-bold transition-all shrink-0 cursor-pointer self-end sm:self-auto"
+                  >
+                    تأكيد القراءة ومسح التنبيه
+                  </button>
+                </motion.div>
+              )}
+            </AnimatePresence>
 
-            <div className={`border ${themeBorderMain} ${themeBgWhite} p-6 transition-colors duration-300`}>
-              <span className={`text-[10px] font-bold ${themeTextMuted} uppercase tracking-widest block`}>Lieux de Livraison</span>
-              <div className="flex items-baseline space-x-2 mt-2">
-                <span className={`text-3xl font-serif font-bold ${themeTextMain}`}>Tunisie</span>
-                <span className="text-[10px] text-emerald-800 bg-emerald-100 px-2 py-0.5 rounded font-bold uppercase tracking-wider">National</span>
-              </div>
-            </div>
-
-          </div>
-
-          {/* Orders Log List */}
-          <div className={`border ${themeBorderMain} ${themeBgWhite} overflow-hidden rounded-sm transition-colors duration-300`}>
-            <div className={`${isNightMode ? 'bg-[#1D2A1E]' : 'bg-[#FAF9F5]'} border-b ${themeBorderMain} p-4 flex items-center justify-between`}>
-              <span className={`text-xs uppercase tracking-widest font-bold ${themeTextMain}`}>Historique des transactions collectées par Sarra (IA)</span>
-              <span className="text-[10px] uppercase tracking-wider text-[#C18D5D] font-bold">Synchronisé Supabase</span>
-            </div>
-
-            {loadingOrders ? (
-              <div className="p-12 text-center space-y-2">
-                <RefreshCw className="h-8 w-8 animate-spin text-[#C18D5D] mx-auto" />
-                <p className={`text-xs ${themeTextMuted}`}>Mise à jour en cours...</p>
-              </div>
-            ) : orders.length === 0 ? (
-              <div className="p-16 text-center space-y-4">
-                <div className={`h-12 w-12 rounded-full ${isNightMode ? 'bg-[#1D2A1E]' : 'bg-[#FAF9F5]'} flex items-center justify-center mx-auto text-[#C18D5D]`}>
-                  <ClipboardList className="h-6 w-6" />
+            {/* Quick Metrics Cards */}
+            <div className="grid grid-cols-1 sm:grid-cols-3 gap-6">
+              
+              <div className={`${themeBgCard} p-6 rounded-sm border ${themeBorder} shadow-sm space-y-2 text-right`}>
+                <div className="flex justify-between items-center">
+                  <span className="relative flex h-2 w-2">
+                    <span className="animate-ping absolute inline-flex h-full w-full rounded-full bg-emerald-400 opacity-75"></span>
+                    <span className="relative inline-flex rounded-full h-2 w-2 bg-emerald-500"></span>
+                  </span>
+                  <div className="p-2 rounded bg-[#C18D5D]/10 text-[#C18D5D]">
+                    <MessageSquare className="h-5 w-5" />
+                  </div>
                 </div>
-                <div className="max-w-xs mx-auto space-y-1">
-                  <h4 className={`font-bold text-sm ${themeTextMain}`}>Aucun colis en attente</h4>
-                  <p className={`text-xs ${themeTextMuted}`}>
-                    Commandez un produit avec Sarra pour voir la commande s'enregistrer immédiatement ici !
+                <span className="text-[10px] text-slate-400 uppercase font-bold block">إجمالي طلبات سارة الذكية</span>
+                <h3 className="font-display font-extrabold text-2xl tracking-tight text-[#2C3E2E] dark:text-[#FAF9F5]">
+                  {orders.length} طلبية
+                </h3>
+              </div>
+
+              <div className={`${themeBgCard} p-6 rounded-sm border ${themeBorder} shadow-sm space-y-2 text-right`}>
+                <div className="flex justify-between items-center">
+                  <span className="text-[10px] text-emerald-600 font-bold bg-emerald-50 px-2 py-0.5 rounded">محدث فورياً</span>
+                  <div className="p-2 rounded bg-[#C18D5D]/10 text-[#C18D5D]">
+                    <TrendingUp className="h-5 w-5" />
+                  </div>
+                </div>
+                <span className="text-[10px] text-slate-400 uppercase font-bold block">قيمة المبيعات الإجمالية التقديرية</span>
+                <h3 className="font-display font-extrabold text-2xl tracking-tight text-[#C18D5D]">
+                  {totalRevenue.toFixed(3)} د.ت
+                </h3>
+              </div>
+
+              <div className={`${themeBgCard} p-6 rounded-sm border ${themeBorder} shadow-sm space-y-2 text-right`}>
+                <div className="flex justify-between items-center">
+                  <span className="text-[10px] text-slate-400">شحن وطني</span>
+                  <div className="p-2 rounded bg-[#C18D5D]/10 text-[#C18D5D]">
+                    <Truck className="h-5 w-5" />
+                  </div>
+                </div>
+                <span className="text-[10px] text-slate-400 uppercase font-bold block">مناطق الشحن الحالية للتوصيل</span>
+                <h3 className="font-display font-extrabold text-base tracking-tight text-[#2C3E2E] dark:text-[#FAF9F5] leading-snug">
+                  كامل التراب التونسي 🇹🇳
+                </h3>
+              </div>
+
+            </div>
+
+            {/* Orders Database Table */}
+            <div className={`${themeBgCard} rounded-sm border ${themeBorder} shadow-lg overflow-hidden`}>
+              <div className="p-5 border-b border-slate-200/50 dark:border-slate-800/50 bg-[#FAF9F5]/40 dark:bg-[#141E15]/40 text-right flex justify-between items-center">
+                <div className="flex items-center gap-2 flex-row-reverse">
+                  <span className="text-[11px] text-slate-400 uppercase font-bold">سجل الطلبيات والمبيعات</span>
+                  {newOrdersCount > 0 && (
+                    <span className="bg-[#C18D5D]/15 text-[#C18D5D] px-2 py-0.5 rounded-full text-[10px] font-extrabold animate-pulse">
+                      {newOrdersCount} جديد
+                    </span>
+                  )}
+                </div>
+                <div className="flex items-center gap-1.5 text-xs text-emerald-800 font-bold">
+                  <span>مزامنة مباشرة مع سوبابيس وقاعدة البيانات</span>
+                  <span className="h-2 w-2 bg-emerald-500 rounded-full animate-pulse" />
+                </div>
+              </div>
+
+              {loadingOrders && orders.length === 0 ? (
+                <div className="text-center py-16">
+                  <RefreshCw className="h-8 w-8 text-[#C18D5D] mx-auto animate-spin mb-3" />
+                  <p className="text-xs text-slate-500">جاري تحميل ومزامنة الطلبيات الفاخرة...</p>
+                </div>
+              ) : orders.length === 0 ? (
+                <div className="text-center py-16 space-y-3">
+                  <ClipboardList className="h-10 w-10 text-slate-300 mx-auto" />
+                  <h4 className="font-display font-bold text-sm">لا توجد طلبات مسجلة حالياً</h4>
+                  <p className="text-xs text-slate-500 max-w-sm mx-auto leading-relaxed">
+                    قم بتجربة طلب منتج عبر سارة (أيقونة الدردشة في الركن الأيمن السفلي) لرؤية طلبيتك تسجل في هذه اللوحة تلقائياً في الوقت الحقيقي!
                   </p>
                 </div>
-              </div>
-            ) : (
-              <div className="overflow-x-auto">
-                <table className="w-full text-left text-xs border-collapse">
-                  <thead>
-                    <tr className={`${isNightMode ? 'bg-[#1D2A1E]/80' : 'bg-[#FAF9F5]/80'} border-b ${themeBorderMain} text-[10px] ${themeTextMuted} uppercase font-bold tracking-wider`}>
-                      <th className="p-4">Référence / Date</th>
-                      <th className="p-4">Destinataire</th>
-                      <th className="p-4">Contact / Adresse</th>
-                      <th className="p-4">Panier d'achat</th>
-                      <th className="p-4">Paiement</th>
-                      <th className="p-4">{lang === 'ar' ? 'الوضعية والإجراءات' : 'Statut & Actions'}</th>
-                    </tr>
-                  </thead>
-                  <tbody className={`divide-y ${isNightMode ? 'divide-emerald-950/30' : 'divide-slate-100'}`}>
-                    {orders.map((order) => (
-                      <tr key={order.id} className="hover:bg-[#FAF9F5]/10 transition-colors">
-                        <td className="p-4 space-y-1">
-                          <span className={`text-xs font-bold ${themeTextMain} block`}>REF-CMD-{order.id}</span>
-                          <span className={`text-[10px] ${themeTextMuted} block`}>
-                            {order.created_at ? new Date(order.created_at).toLocaleString([], { dateStyle: 'short', timeStyle: 'short' }) : 'Maintenant'}
-                          </span>
-                        </td>
-                        <td className={`p-4 font-serif italic text-sm ${themeTextMain}`}>
-                          {order.nom_client}
-                        </td>
-                        <td className="p-4 space-y-1">
-                          <span className="text-xs font-semibold text-[#C18D5D] flex items-center">
-                            <Phone className="h-3 w-3 mr-1" />
-                            {order.telephone}
-                          </span>
-                          <span className={`text-xs ${themeTextMuted} flex items-start leading-tight max-w-xs`}>
-                            <MapPin className="h-3.5 w-3.5 mr-1 text-[#C18D5D] flex-shrink-0 mt-0.5" />
-                            {order.adresse}
-                          </span>
-                        </td>
-                        <td className="p-4 text-xs font-medium">
-                          <span className={`inline-block ${isNightMode ? 'bg-[#1D2A1E] text-[#FAF9F5]' : 'bg-[#F9F7F2] text-[#2C3E2E]'} border ${themeBorderMain} px-2.5 py-1`}>
-                            {order.details_produits}
-                          </span>
-                        </td>
-                        <td className="p-4">
-                          <span className={`inline-flex items-center rounded-full ${isNightMode ? 'bg-amber-950/30 text-amber-300 border-amber-900/50' : 'bg-amber-50 text-amber-800 border-amber-200'} px-2.5 py-0.5 text-[10px] uppercase tracking-wider font-bold border`}>
-                            Cash à la livraison
-                          </span>
-                        </td>
-                        <td className="p-4">
-                          <div className="flex flex-col sm:flex-row items-start sm:items-center gap-2 min-w-[220px]">
-                            <span className={`inline-flex items-center rounded-full px-2.5 py-0.5 text-[10px] uppercase tracking-wider font-bold border ${
-                              order.statut === 'En attente' 
-                                ? (isNightMode ? 'bg-slate-900/40 text-slate-300 border-slate-800' : 'bg-slate-100 text-slate-700 border-slate-200')
-                                : order.statut === 'En cours' || order.statut === 'Préparation'
-                                ? (isNightMode ? 'bg-blue-950/40 text-blue-300 border-blue-900/50' : 'bg-blue-50 text-blue-700 border-blue-200')
-                                : order.statut === 'Expédiée' || order.statut === 'En cours de livraison'
-                                ? (isNightMode ? 'bg-amber-950/40 text-amber-300 border-amber-900/50' : 'bg-amber-50 text-amber-800 border-amber-200')
-                                : order.statut === 'Livrée' || order.statut === 'Livré'
-                                ? (isNightMode ? 'bg-emerald-950/40 text-emerald-300 border-emerald-900/50' : 'bg-emerald-50 text-emerald-800 border-emerald-200')
-                                : (isNightMode ? 'bg-slate-900/40 text-slate-300 border-slate-800' : 'bg-slate-100 text-slate-700 border-slate-200')
-                            }`}>
-                              {order.statut === 'En attente' ? (lang === 'ar' ? 'قيد الانتظار' : 'En attente') :
-                               order.statut === 'En cours' || order.statut === 'Préparation' ? (lang === 'ar' ? 'قيد التحضير' : 'En préparation') :
-                               order.statut === 'Expédiée' || order.statut === 'En cours de livraison' ? (lang === 'ar' ? 'جاري التوصيل' : 'En cours de livraison') :
-                               order.statut === 'Livrée' || order.statut === 'Livré' ? (lang === 'ar' ? 'تم التسليم' : 'Livrée') : 
-                               (order.statut || (lang === 'ar' ? 'تم التأكيد' : 'Confirmée'))}
-                            </span>
-                            
-                            <select
-                              value={order.statut || 'En attente'}
-                              onChange={(e) => handleUpdateOrderStatus(order.id, e.target.value)}
-                              className={`text-[11px] font-semibold border ${themeBorderMain} rounded-xs px-2 py-1 bg-transparent cursor-pointer transition-colors focus:ring-1 focus:ring-[#C18D5D] focus:outline-hidden ${isNightMode ? 'text-white bg-[#1C2A1C]' : 'text-[#2C3E2E] bg-white'}`}
-                            >
-                              <option value="En attente" className={isNightMode ? 'bg-[#1D2A1E] text-white' : 'bg-white text-black'}>
-                                {lang === 'ar' ? 'قيد الانتظار' : 'En attente'}
-                              </option>
-                              <option value="Préparation" className={isNightMode ? 'bg-[#1D2A1E] text-white' : 'bg-white text-black'}>
-                                {lang === 'ar' ? 'قيد التحضير' : 'En préparation'}
-                              </option>
-                              <option value="En cours de livraison" className={isNightMode ? 'bg-[#1D2A1E] text-white' : 'bg-white text-black'}>
-                                {lang === 'ar' ? 'جاري التوصيل' : 'En cours de livraison'}
-                              </option>
-                              <option value="Livrée" className={isNightMode ? 'bg-[#1D2A1E] text-white' : 'bg-white text-black'}>
-                                {lang === 'ar' ? 'تم التسليم' : 'Livrée'}
-                              </option>
-                            </select>
-                          </div>
-                        </td>
+              ) : (
+                <div className="overflow-x-auto">
+                  <table className="w-full text-right border-collapse text-xs sm:text-sm">
+                    <thead>
+                      <tr className="bg-[#FAF9F5]/70 dark:bg-[#141E15]/60 text-slate-500 uppercase text-[10px] font-bold border-b border-slate-200/50 dark:border-slate-800/50">
+                        <th className="p-4">المرجع / التاريخ</th>
+                        <th className="p-4">الاسم واللقب للعميل</th>
+                        <th className="p-4">رقم الهاتف / العنوان</th>
+                        <th className="p-4">المنتجات المطلوبة والكمية</th>
+                        <th className="p-4">حالة التوصيل</th>
                       </tr>
-                    ))}
-                  </tbody>
-                </table>
-              </div>
-            )}
+                    </thead>
+                    <tbody className="divide-y divide-slate-100 dark:divide-slate-800/40">
+                      {orders.map((o) => (
+                        <tr 
+                          key={o.id} 
+                          className="hover:bg-slate-50/50 dark:hover:bg-slate-800/20 transition-colors"
+                        >
+                          <td className="p-4 whitespace-nowrap">
+                            <span className="font-bold text-[#C18D5D] block">#{o.id}</span>
+                            <span className="text-[10px] text-slate-400 mt-1 block">
+                              {o.created_at ? new Date(o.created_at).toLocaleString('ar-TN', { hour: '2-digit', minute: '2-digit', day: '2-digit', month: '2-digit' }) : "تاريخ مجهول"}
+                            </span>
+                          </td>
+                          <td className="p-4 font-bold whitespace-nowrap">{o.nom_client}</td>
+                          <td className="p-4">
+                            <span className="block font-medium">{o.telephone}</span>
+                            <span className="text-[11px] text-slate-400 block mt-0.5 max-w-xs truncate" title={o.adresse}>{o.adresse}</span>
+                          </td>
+                          <td className="p-4 font-semibold text-slate-600 dark:text-slate-300 max-w-xs truncate" title={o.details_produits}>
+                            {o.details_produits}
+                          </td>
+                          <td className="p-4 whitespace-nowrap">
+                            <select
+                              value={o.statut === 'Livré' ? 'Livrée' : o.statut}
+                              onChange={(e) => handleUpdateOrderStatus(o.id, e.target.value)}
+                              className={`px-2 py-1 text-xs font-bold rounded-sm border cursor-pointer focus:outline-none focus:ring-0 ${
+                                ['Livrée', 'Livré', 'تم التسليم'].includes(o.statut)
+                                  ? 'bg-emerald-100 text-emerald-800 dark:bg-emerald-950/40 dark:text-emerald-300 border-emerald-300 text-right'
+                                  : ['Expédiée', 'En cours de livraison', 'Expédié'].includes(o.statut)
+                                  ? 'bg-blue-100 text-blue-800 dark:bg-[#152335] dark:text-blue-300 border-blue-300 text-right'
+                                  : 'bg-amber-100 text-amber-800 dark:bg-[#2e2311] dark:text-amber-300 border-amber-300 text-right'
+                              }`}
+                            >
+                              <option value="En attente" className="bg-white dark:bg-[#1D2A1E]">قيد الانتظار (En attente)</option>
+                              <option value="En cours de livraison" className="bg-white dark:bg-[#1D2A1E]">جاري الشحن (En cours)</option>
+                              <option value="Livrée" className="bg-white dark:bg-[#1D2A1E]">تم التسليم (Livré)</option>
+                            </select>
+                            <span className="block text-[9px] text-slate-400 mt-1 font-semibold uppercase">كاش عند التسليم 🚚</span>
+                          </td>
+                        </tr>
+                      ))}
+                    </tbody>
+                  </table>
+                </div>
+              )}
+            </div>
           </div>
-        </main>
+        )
       )}
 
-      {/* Product Details Modal (Fenêtre Modale Éditoriale) */}
+      </main>
+
+      {/* Exquisite Product Details Modal Overlay Sheet */}
       <AnimatePresence>
-        {selectedProduct && (() => {
-          const isAr = lang === 'ar';
-          const arData = isAr ? productArMap[selectedProduct.nom] : null;
-          const translatedNom = arData ? arData.nom : selectedProduct.nom;
-          const translatedDesc = arData ? arData.description : selectedProduct.description;
-          const details = arData ? arData : getProductDetails(selectedProduct.nom);
-          return (
-            <div className="fixed inset-0 z-50 flex items-center justify-center p-4 sm:p-6 md:p-10">
-              {/* Blur backdrop overlay */}
-              <motion.div
-                initial={{ opacity: 0 }}
-                animate={{ opacity: 1 }}
-                exit={{ opacity: 0 }}
+        {selectedProduct && (
+          <motion.div
+            initial={{ opacity: 0 }}
+            animate={{ opacity: 1 }}
+            exit={{ opacity: 0 }}
+            className="fixed inset-0 z-50 bg-black/60 backdrop-blur-xs flex items-center justify-center p-4"
+          >
+            <motion.div
+              initial={{ scale: 0.95, y: 15 }}
+              animate={{ scale: 1, y: 0 }}
+              exit={{ scale: 0.95, y: 15 }}
+              className={`${themeBgCard} text-right rounded-lg overflow-hidden border ${themeBorder} w-full max-w-2xl shadow-2xl relative flex flex-col md:flex-row max-h-[90vh] md:max-h-none overflow-y-auto md:overflow-y-visible`}
+            >
+              
+              {/* Close Button absolute top */}
+              <button
                 onClick={() => setSelectedProduct(null)}
-                className="fixed inset-0 bg-[#2C3E2E]/40 backdrop-blur-xs cursor-pointer"
-              />
-
-              {/* Modal Body Container */}
-              <motion.div
-                initial={{ opacity: 0, scale: 0.95, y: 15 }}
-                animate={{ opacity: 1, scale: 1, y: 0 }}
-                exit={{ opacity: 0, scale: 0.95, y: 15 }}
-                transition={{ duration: 0.3, ease: [0.16, 1, 0.3, 1] }}
-                className={`relative ${themeBgMain} w-full max-w-3xl overflow-hidden shadow-2xl border ${themeBorderMain} flex flex-col md:flex-row max-h-[90vh] transition-colors duration-300 ${isAr ? 'md:flex-row-reverse' : ''}`}
+                className="absolute top-4 left-4 z-10 p-2 rounded-full bg-[#2C3E2E] text-white hover:bg-[#C18D5D] transition-colors shadow-lg cursor-pointer"
               >
-                {/* Close Button */}
-                <button
-                  onClick={() => setSelectedProduct(null)}
-                  className={`absolute top-4 ${isAr ? 'left-4' : 'right-4'} z-20 ${themeBgWhite} hover:bg-[#C18D5D] hover:text-white ${themeTextMain} border ${themeBorderMain} hover:border-[#C18D5D] p-1.5 transition-colors cursor-pointer rounded-sm`}
-                  aria-label="Fermer"
-                >
-                  <X className="h-4 w-4" />
-                </button>
+                <X className="h-4 w-4" />
+              </button>
 
-                {/* Left Side: Product Image & certification details */}
-                <div className={`w-full md:w-[42%] ${isNightMode ? 'bg-[#1D2A1E]' : 'bg-[#FAF9F5]'} flex flex-col justify-between border-b md:border-b-0 ${isAr ? 'md:border-l' : 'md:border-r'} ${themeBorderMain} p-6 md:p-8 shrink-0`}>
-                  <div className="space-y-4">
-                    <div className="aspect-square bg-[#E8E4DB] overflow-hidden border border-[#2C3E2E]/5 relative">
-                      <LazyImage
-                        src={selectedProduct.image_url}
-                        alt={translatedNom}
-                        className="h-full w-full object-cover"
-                      />
-                      <div className={`absolute bottom-3 ${isAr ? 'right-3' : 'left-3'} z-10`}>
-                        <Tooltip content={
-                          isAr
-                            ? 'ضمان جودة هذا المنتج الطبيعي وصنعه اليدوي الفاخر.'
-                            : 'Garantie d\'un produit certifié sain, naturel et fait main avec le plus grand soin.'
-                        }>
-                          <div className={`bg-[#2C3E2E] text-[#F9F7F2] text-[8px] uppercase tracking-[0.25em] font-semibold px-2 py-0.5 cursor-help ${isNightMode ? 'border border-[#FAF9F5]/20' : ''}`}>
-                            {details.certification}
-                          </div>
-                        </Tooltip>
-                      </div>
-                    </div>
+              {/* Product Card Image portion - Styled with rounded corners, border, and shadow */}
+              <div className="w-full md:w-1/2 p-4 md:p-6 flex items-center justify-center bg-[#FAF9F5] dark:bg-slate-900/30">
+                <div className="h-64 md:h-full w-full min-h-[250px] relative overflow-hidden rounded-2xl shadow-lg border border-[#E8E4DB]/80 dark:border-slate-800/80">
+                  <div className="absolute top-4 right-4 z-10 bg-[#C18D5D] text-white text-[10px] uppercase tracking-widest font-bold px-2.5 py-1 rounded-md shadow-sm">
+                    مكونات طبيعية نقية 🌿
                   </div>
-
-                  <div className={`mt-6 md:mt-0 pt-4 border-t ${themeBorderLight} space-y-3 ${isAr ? 'text-right' : 'text-left'}`}>
-                    <Tooltip content={
-                      isAr
-                        ? 'مكونات قابلة للتحلل الحيوي بالكامل، وتغليف صديق للبيئة يدعم الاستدامة والحد من الانبعاثات الكربونية.'
-                        : 'Formules 100% biodégradables, emballages durables et approvisionnement éthique à empreinte carbone minimale.'
-                    }>
-                      <div className={`flex items-center space-x-2 text-[#C18D5D] cursor-help ${isAr ? 'flex-row-reverse space-x-reverse' : ''}`}>
-                        <ShieldCheck className="h-4 w-4 shrink-0 hover:scale-110 transition-transform" />
-                        <span className={`text-[10px] font-sans font-bold uppercase tracking-widest ${themeTextMain}`}>{isAr ? 'عناية صديقة للبيئة' : 'Soin Éco-responsable'}</span>
-                      </div>
-                    </Tooltip>
-                    <p className={`text-[10px] ${themeTextMuted} leading-relaxed`}>
-                      {isAr 
-                        ? 'يتم قطف كل مكون بعناية بطرق أخلاقية ومستدامة في تونس لضمان النقاء التام والفاعلية القصوى.'
-                        : 'Chaque ingrédient est soigneusement cueilli de manière éthique en Tunisie pour garantir une pureté totale. Sans additifs nocifs.'}
-                    </p>
-                  </div>
+                  <LazyImage 
+                    src={selectedProduct.image_url} 
+                    alt={selectedProduct.nom} 
+                    className="w-full h-full object-cover hover:scale-105 transition-transform duration-500"
+                  />
+                  <div className="absolute inset-0 bg-black/5" />
                 </div>
+              </div>
 
-                {/* Right Side: Editorial Content */}
-                <div className={`w-full md:w-[58%] p-6 md:p-8 overflow-y-auto flex flex-col justify-between space-y-6 max-h-[50vh] md:max-h-none ${isAr ? 'text-right' : 'text-left'}`}>
-                  <div className="space-y-4">
-                    {/* Header */}
-                    <div className="space-y-1">
-                      <span className="text-[#C18D5D] text-[9px] uppercase tracking-[0.3em] font-bold block">
-                        {isAr ? 'معشبة تجميل استثنائية' : "Herboristerie d'Exception"}
-                      </span>
-                      <h2 className={`font-serif text-xl sm:text-2xl font-semibold ${themeTextMain} leading-tight`}>
-                        {translatedNom}
-                      </h2>
-                      <div className={`flex items-baseline space-x-3 pt-1 ${isAr ? 'flex-row-reverse space-x-reverse' : ''}`}>
-                        <span className="text-lg font-serif italic text-[#C18D5D] font-bold">
-                          {selectedProduct.prix.toFixed(3)} {isAr ? 'د.ت' : 'TND'}
-                        </span>
-                        <span className="text-[9px] uppercase tracking-wider text-emerald-800 bg-emerald-50 border border-emerald-100 px-2 py-0.5">
-                          {isAr ? 'متوفر حالياً' : 'En stock'}
-                        </span>
-                      </div>
-                    </div>
-
-                    {/* Description */}
-                    <p className={`text-xs ${themeTextMuted} leading-relaxed`}>
-                      {translatedDesc}
+              {/* Product Text/Specs details portion */}
+              <div className="w-full md:w-1/2 p-6 sm:p-8 flex flex-col justify-between space-y-6">
+                <div className="space-y-4">
+                  <div>
+                    <span className="text-[10px] text-[#C18D5D] font-bold uppercase block tracking-wider">مستحضر تجميل طبيعي فاخر</span>
+                    <h3 className="font-display font-extrabold text-xl text-[#2C3E2E] dark:text-[#FAF9F5] mt-1 leading-tight">
+                      {selectedProduct.nom}
+                    </h3>
+                    <p className="font-display font-extrabold text-base text-[#C18D5D] mt-2">
+                      {selectedProduct.prix.toFixed(3)} د.ت
                     </p>
+                  </div>
 
-                    {/* Ingredients List */}
-                    <div className="space-y-2 pt-2">
-                      <h3 className={`text-[10px] uppercase tracking-widest ${themeTextMain} font-bold flex items-center ${isAr ? 'flex-row-reverse' : ''}`}>
-                        <Leaf className={`h-3.5 w-3.5 text-[#C18D5D] ${isAr ? 'ml-1.5' : 'mr-1.5'}`} />
-                        {isAr ? 'المكونات الثمينة :' : 'Ingrédients précieux :'}
-                      </h3>
-                      <ul className={`grid grid-cols-1 gap-1.5 text-xs ${themeTextMuted}`}>
-                        {details.ingredients.map((ing, idx) => (
-                          <li key={idx} className={`flex items-start ${isAr ? 'flex-row-reverse' : 'space-x-2'}`}>
-                            <span className={`text-[#C18D5D] shrink-0 ${isAr ? 'ml-2' : 'mt-1 mr-2'}`}>•</span>
-                            <span className="text-[11px] leading-tight font-medium">{ing}</span>
+                  <p className="text-xs text-slate-500 leading-relaxed">
+                    {selectedProduct.description}
+                  </p>
+
+                  <div className="space-y-3 pt-2">
+                    {/* Ingredients list mapping */}
+                    <div>
+                      <h4 className="text-xs font-bold text-[#2C3E2E] dark:text-[#FAF9F5] mb-1.5 flex items-center gap-1 justify-end">
+                        <span>المكونات الثمينة النشطة :</span>
+                        <Leaf className="h-3.5 w-3.5 text-emerald-600" />
+                      </h4>
+                      <ul className="text-[11px] text-slate-600 dark:text-slate-400 space-y-1 list-none pr-0">
+                        {getProductDetails(selectedProduct.nom).ingredients.map((ing, i) => (
+                          <li key={i} className="flex items-center gap-1.5 justify-end">
+                            <span>{ing}</span>
+                            <span className="text-[#C18D5D] font-bold text-xs">✦</span>
                           </li>
                         ))}
                       </ul>
                     </div>
 
-                    {/* Advice / Conseils */}
-                    <div className="space-y-1.5 pt-2">
-                      <h3 className={`text-[10px] uppercase tracking-widest ${themeTextMain} font-bold flex items-center ${isAr ? 'flex-row-reverse' : ''}`}>
-                        <Sparkles className={`h-3.5 w-3.5 text-[#C18D5D] ${isAr ? 'ml-1.5' : 'mr-1.5'}`} />
-                        {isAr ? 'نصائح الاستعمال :' : "Conseils d'utilisation :"}
-                      </h3>
-                      <p className={`text-[11px] ${themeTextMuted} leading-relaxed italic ${isNightMode ? 'bg-[#1D2A1E]' : 'bg-[#FAF9F5]'} p-3 ${isAr ? 'border-r-2 border-l-0 text-right' : 'border-l-2 border-r-0 text-left'} border-[#C18D5D]`}>
-                        {details.conseils}
-                      </p>
-                    </div>
-
-                    {/* Benefits / Bienfaits */}
-                    <div className="space-y-1">
-                      <h4 className={`text-[9px] uppercase tracking-wider ${themeTextMain} font-bold`}>
-                        {isAr ? 'الفوائد والخصائص :' : 'Propriétés :'}
+                    {/* Usage Instructions mapping */}
+                    <div>
+                      <h4 className="text-xs font-bold text-[#2C3E2E] dark:text-[#FAF9F5] mb-1 flex items-center gap-1 justify-end">
+                        <span>نصائح وطريقة الاستخدام :</span>
+                        <Award className="h-3.5 w-3.5 text-[#C18D5D]" />
                       </h4>
-                      <p className={`text-[10px] ${themeTextMuted} leading-relaxed`}>
-                        {details.bienfaits}
+                      <p className="text-[11px] text-slate-500 leading-relaxed">
+                        {getProductDetails(selectedProduct.nom).conseils}
                       </p>
                     </div>
-                  </div>
 
-                  {/* Actions */}
-                  <div className={`pt-6 border-t ${themeBorderLight} flex flex-col sm:flex-row items-stretch sm:items-center justify-between gap-4 ${isAr ? 'sm:flex-row-reverse' : ''}`}>
-                    <div className={isAr ? 'text-right' : 'text-left'}>
-                      <span className={`text-[8px] uppercase tracking-wider ${themeTextMuted} block`}>
-                        {isAr ? 'الدفع الآمن' : 'Paiement Sécurisé'}
-                      </span>
-                      <span className={`text-[10px] ${themeTextMain} font-bold`}>
-                        {isAr ? 'عند الاستلام في تونس' : 'À la livraison en Tunisie'}
-                      </span>
-                    </div>
-                    
-                    <div className={`flex gap-2.5 ${isAr ? 'flex-row-reverse' : ''}`}>
-                      <button
-                        onClick={() => {
-                          setSelectedProduct(null);
-                        }}
-                        className={`rounded-sm border ${isNightMode ? 'border-[#FAF9F5]/25 hover:border-white text-[#FAF9F5]' : 'border-[#2C3E2E]/25 hover:border-[#2C3E2E] text-[#2C3E2E]'} hover:opacity-85 transition-colors px-4 py-2.5 text-[10px] uppercase tracking-widest font-bold cursor-pointer text-center flex-1 sm:flex-none`}
-                      >
-                        {isAr ? 'رجوع' : 'Retour'}
-                      </button>
-                      <button
-                        onClick={() => {
-                          const pName = selectedProduct.nom;
-                          setSelectedProduct(null);
-                          handleOrderClick(pName);
-                        }}
-                        className={`rounded-sm ${isNightMode ? 'bg-[#C18D5D] hover:bg-[#b07d4e] text-white' : 'bg-[#2C3E2E] hover:bg-[#C18D5D] text-[#F9F7F2]'} transition-all duration-300 px-6 py-2.5 text-[10px] uppercase tracking-widest font-bold shadow-md cursor-pointer flex-1 sm:flex-none text-center`}
-                      >
-                        {isAr ? 'طلب الآن' : 'Commander'}
-                      </button>
+                    {/* Skin benefits mapping */}
+                    <div>
+                      <h4 className="text-xs font-bold text-[#2C3E2E] dark:text-[#FAF9F5] mb-1 flex items-center gap-1 justify-end">
+                        <span>فوائد ومميزات المستحضر :</span>
+                        <Sparkles className="h-3.5 w-3.5 text-[#C18D5D] animate-pulse" />
+                      </h4>
+                      <p className="text-[11px] text-slate-500 leading-relaxed">
+                        {getProductDetails(selectedProduct.nom).bienfaits}
+                      </p>
                     </div>
                   </div>
                 </div>
 
-              </motion.div>
-            </div>
-          );
-        })()}
+                {/* Bottom modal actions */}
+                <div className="pt-4 border-t border-slate-200/50 dark:border-slate-800/50 space-y-3">
+                  <div className="flex items-center justify-between text-[11px]">
+                    <span className="text-emerald-700 dark:text-emerald-400 font-bold">{getProductDetails(selectedProduct.nom).certification}</span>
+                    <span className="text-slate-400">الشهادة والجودة :</span>
+                  </div>
+                  
+                  <div className="space-y-2">
+                    <div className="grid grid-cols-2 gap-3">
+                      <button
+                        onClick={() => setSelectedProduct(null)}
+                        className="px-4 py-2.5 min-h-[48px] border border-slate-300 hover:bg-slate-100 dark:hover:bg-slate-800 text-slate-600 dark:text-slate-300 text-xs font-semibold rounded-sm transition-all cursor-pointer flex items-center justify-center"
+                      >
+                        إغلاق النافذة
+                      </button>
+                      
+                      <button
+                        onClick={() => {
+                          handleOrderClick(selectedProduct.nom);
+                          setSelectedProduct(null);
+                        }}
+                        className="px-4 py-2.5 min-h-[48px] bg-[#C18D5D] hover:bg-[#b07d50] text-white text-xs font-semibold rounded-sm transition-all cursor-pointer shadow-xs flex items-center justify-center text-center"
+                      >
+                        طلب سريع عبر سارة
+                      </button>
+                    </div>
+
+                    <button
+                      onClick={() => {
+                        handleAddToCart(selectedProduct);
+                        setSelectedProduct(null);
+                      }}
+                      className="w-full py-2.5 min-h-[48px] bg-[#2C3E2E] hover:bg-[#C18D5D] text-white text-xs font-bold rounded-sm transition-all cursor-pointer shadow-xs flex items-center justify-center gap-1.5"
+                    >
+                      <ShoppingBag className="h-4 w-4 text-amber-400" />
+                      <span>أضف هذا المنتج للسلة 🌸</span>
+                    </button>
+                  </div>
+                </div>
+
+              </div>
+
+            </motion.div>
+          </motion.div>
+        )}
       </AnimatePresence>
 
-      {/* Admin Login Authentication Modal */}
+      {/* Sliding Shopping Cart Drawer Overlay Panel */}
       <AnimatePresence>
-        {showAdminLoginModal && (
-          <div className="fixed inset-0 z-50 overflow-y-auto flex items-center justify-center p-4 sm:p-6 bg-brand-dark/70 backdrop-blur-md">
+        {isCartOpen && (
+          <div className="fixed inset-0 z-50 overflow-hidden" dir="rtl">
+            {/* Backdrop */}
             <motion.div
-              initial={{ opacity: 0, scale: 0.95, y: 15 }}
-              animate={{ opacity: 1, scale: 1, y: 0 }}
-              exit={{ opacity: 0, scale: 0.95, y: 15 }}
-              transition={{ duration: 0.3, ease: 'easeOut' }}
-              className={`relative ${themeBgWhite} rounded-2xl w-full max-w-md overflow-hidden shadow-2xl border ${themeBorderMain} p-6 sm:p-8`}
-            >
-              {/* Close Button */}
-              <button
-                onClick={() => setShowAdminLoginModal(false)}
-                className={`absolute top-4 right-4 p-1.5 rounded-full ${isNightMode ? 'text-slate-400 hover:text-[#FAF9F5] hover:bg-white/10' : 'text-brand-dark hover:text-brand-primary hover:bg-brand-cream/40'} transition-all cursor-pointer`}
-                aria-label="Fermer"
+              initial={{ opacity: 0 }}
+              animate={{ opacity: 0.5 }}
+              exit={{ opacity: 0 }}
+              onClick={() => setIsCartOpen(false)}
+              className="absolute inset-0 bg-black cursor-pointer"
+            />
+
+            {/* Panel */}
+            <div className="absolute inset-y-0 left-0 max-w-full flex">
+              <motion.div
+                initial={{ x: '-100%' }}
+                animate={{ x: 0 }}
+                exit={{ x: '-100%' }}
+                transition={{ type: 'spring', damping: 25, stiffness: 200 }}
+                className={`w-screen max-w-md ${themeBgCard} border-r ${themeBorder} shadow-2xl flex flex-col`}
               >
-                <X size={16} />
-              </button>
-
-              <div className="flex flex-col items-center text-center space-y-4">
-                {/* Lock Icon and Header */}
-                <div className={`p-4 rounded-full ${isNightMode ? 'bg-[#C18D5D]/15 text-[#C18D5D]' : 'bg-[#2C3E2E]/10 text-[#2C3E2E]'} inline-flex`}>
-                  <Lock className="h-6 w-6 stroke-[1.5]" />
-                </div>
-
-                <div className="space-y-1">
-                  <h3 className={`font-serif text-xl font-bold ${themeTextMain}`}>
-                    {lang === 'ar' ? 'بوابة المدير الآمنة' : 'Accès Administrateur'}
-                  </h3>
-                  <p className={`text-xs ${themeTextMuted} max-w-[280px] mx-auto leading-relaxed`}>
-                    {lang === 'ar' 
-                      ? 'الرجاء إدخال كلمة مرور المسؤول لعرض وإدارة طلبات الزبائن والتحكم في المبيعات.' 
-                      : 'Veuillez saisir le mot de passe de gestion pour accéder au tableau de bord des commandes.'}
-                  </p>
-                </div>
-
-                {/* Login Form */}
-                <form onSubmit={handleAdminLogin} className="w-full space-y-4 pt-2 text-left">
-                  <div className="space-y-1.5">
-                    <label className={`text-[10px] uppercase tracking-widest font-bold ${themeTextMuted}`}>
-                      {lang === 'ar' ? 'البريد الإلكتروني' : 'Email'}
-                    </label>
-                    <input
-                      type="email"
-                      value={emailInput}
-                      onChange={(e) => {
-                        setEmailInput(e.target.value);
-                        if (loginError) setLoginError(null);
-                      }}
-                      placeholder="Ex: admin@pureglow.tn"
-                      className={`w-full text-sm rounded-sm px-4 py-2.5 outline-none transition-all ${
-                        isNightMode 
-                          ? 'bg-[#141E15] text-[#FAF9F5] border-[#FAF9F5]/10 focus:border-[#C18D5D]/50' 
-                          : 'bg-[#FAF9F5] text-[#2C3E2E] border-[#2C3E2E]/15 focus:border-[#2C3E2E]'
-                      } border`}
-                      autoFocus
-                    />
+                {/* Drawer Header */}
+                <div className="p-5 border-b border-slate-200/60 dark:border-slate-800/60 flex items-center justify-between">
+                  <div className="flex items-center gap-2">
+                    <div className="h-9 w-9 rounded-full bg-[#2C3E2E] flex items-center justify-center text-[#C18D5D]">
+                      <ShoppingBag className="h-4.5 w-4.5" />
+                    </div>
+                    <div>
+                      <h3 className="font-display font-extrabold text-base text-[#2C3E2E] dark:text-[#FAF9F5]">سلة المشتريات</h3>
+                      <p className="text-[10px] text-slate-400 font-semibold uppercase">مستحضراتكِ العضوية المفضلة</p>
+                    </div>
                   </div>
-                  <div className="space-y-1.5">
-                    <label className={`text-[10px] uppercase tracking-widest font-bold ${themeTextMuted}`}>
-                      {lang === 'ar' ? 'كلمة المرور' : 'Mot de passe'}
-                    </label>
-                    <input
-                      type="password"
-                      value={passwordInput}
-                      onChange={(e) => {
-                        setPasswordInput(e.target.value);
-                        if (loginError) setLoginError(null);
-                      }}
-                      placeholder={lang === 'ar' ? 'كلمة المرور' : 'Mot de passe'}
-                      className={`w-full text-sm rounded-sm px-4 py-2.5 outline-none transition-all ${
-                        isNightMode 
-                          ? 'bg-[#141E15] text-[#FAF9F5] border-[#FAF9F5]/10 focus:border-[#C18D5D]/50' 
-                          : 'bg-[#FAF9F5] text-[#2C3E2E] border-[#2C3E2E]/15 focus:border-[#2C3E2E]'
-                      } border`}
-                    />
-                    {loginError && (
-                      <p className="text-red-500 text-[10px] font-semibold mt-1">
-                        {loginError}
-                      </p>
+                  
+                  <div className="flex items-center gap-2">
+                    {cart.length > 0 && (
+                      <button
+                        onClick={handleClearCart}
+                        className="text-[10px] px-2 py-1.5 text-rose-500 hover:bg-rose-50 dark:hover:bg-rose-950/20 rounded border border-rose-200/40 font-bold transition-all cursor-pointer"
+                      >
+                        إفراغ السلة
+                      </button>
                     )}
+                    <button
+                      onClick={() => setIsCartOpen(false)}
+                      className="p-1.5 rounded-full hover:bg-slate-100 dark:hover:bg-slate-800 text-slate-500 dark:text-slate-400 cursor-pointer"
+                    >
+                      <X className="h-5 w-5" />
+                    </button>
                   </div>
+                </div>
 
-                  {/* Actions buttons */}
-                  <div className="flex gap-2.5 pt-2">
-                    <button
-                      type="button"
-                      onClick={() => setShowAdminLoginModal(false)}
-                      className={`flex-1 rounded-sm border ${
-                        isNightMode 
-                          ? 'border-[#FAF9F5]/25 hover:border-[#FAF9F5] text-slate-300' 
-                          : 'border-[#2C3E2E]/25 hover:border-[#2C3E2E] text-[#2C3E2E]'
-                      } transition-colors px-4 py-2.5 text-[10px] uppercase tracking-widest font-bold cursor-pointer text-center`}
-                    >
-                      {lang === 'ar' ? 'إلغاء' : 'Annuler'}
-                    </button>
-                    <button
-                      type="submit"
-                      className={`flex-1 rounded-sm text-[#F9F7F2] ${
-                        isNightMode ? 'bg-[#C18D5D] hover:bg-[#b07d4e]' : 'bg-[#2C3E2E] hover:bg-[#C18D5D]'
-                      } transition-all duration-300 px-4 py-2.5 text-[10px] uppercase tracking-widest font-bold shadow-md cursor-pointer text-center`}
-                    >
-                      {lang === 'ar' ? 'تأكيد الدخول' : 'Se connecter'}
-                    </button>
+                {/* Drawer Content */}
+                <div className="flex-1 overflow-y-auto p-5 space-y-4">
+                  {cart.length === 0 ? (
+                    <div className="h-full flex flex-col items-center justify-center text-center space-y-4">
+                      <div className="h-16 w-16 rounded-full bg-[#E8E4DB]/25 flex items-center justify-center text-[#C18D5D]">
+                        <ShoppingBag className="h-8 w-8 animate-bounce" />
+                      </div>
+                      <div>
+                        <h4 className="font-display font-extrabold text-sm text-[#2C3E2E] dark:text-[#FAF9F5]">سلة التسوق فارغة حالياً</h4>
+                        <p className="text-xs text-slate-400 max-w-xs mt-1 leading-relaxed">
+                          تصفحي مجموعتنا الفاخرة من الصابون الطبيعي والكريمات العضوية وأضيفي ما يسعد بشرتكِ اليوم! 🌸
+                        </p>
+                      </div>
+                      <button
+                        onClick={() => setIsCartOpen(false)}
+                        className="px-5 py-2 bg-[#2C3E2E] hover:bg-[#C18D5D] text-white text-xs font-semibold rounded-md transition-colors cursor-pointer"
+                      >
+                        العودة للمتجر
+                      </button>
+                    </div>
+                  ) : (
+                    <div className="space-y-4">
+                      {cart.map((item) => {
+                        const cardTheme = getProductTheme(item.nom);
+                        return (
+                          <div
+                            key={item.id}
+                            className={`p-3 rounded-xl border ${cardTheme.border} ${cardTheme.bg} flex gap-3 items-center justify-between shadow-2xs`}
+                          >
+                            {/* Product Image */}
+                            <div className="h-16 w-16 rounded-lg overflow-hidden border border-slate-200 bg-white flex-shrink-0">
+                              <img
+                                src={item.image_url}
+                                alt={item.nom}
+                                className="h-full w-full object-cover"
+                                referrerPolicy="no-referrer"
+                              />
+                            </div>
+
+                            {/* Product details and actions */}
+                            <div className="flex-1 min-w-0">
+                              <h4 className="text-xs font-bold text-[#2C3E2E] dark:text-[#FAF9F5] truncate mb-0.5 text-right">
+                                {item.nom}
+                              </h4>
+                              <p className="text-[11px] text-[#C18D5D] font-black text-right">
+                                {item.prix.toFixed(3)} د.ت
+                              </p>
+
+                              {/* Quantities controller row */}
+                              <div className="flex items-center gap-2 mt-1.5">
+                                <button
+                                  onClick={() => handleUpdateCartQuantity(item.id, item.quantity - 1)}
+                                  className="p-1 rounded bg-[#FAF9F5] dark:bg-[#1D2A1E] border border-slate-200/50 hover:border-[#C18D5D] text-slate-600 dark:text-slate-300 transition-colors cursor-pointer"
+                                >
+                                  <Minus className="h-3 w-3" />
+                                </button>
+                                <span className="text-xs font-bold w-6 text-center text-slate-800 dark:text-slate-200">
+                                  {item.quantity}
+                                </span>
+                                <button
+                                  onClick={() => handleUpdateCartQuantity(item.id, item.quantity + 1)}
+                                  className="p-1 rounded bg-[#FAF9F5] dark:bg-[#1D2A1E] border border-slate-200/50 hover:border-[#C18D5D] text-slate-600 dark:text-slate-300 transition-colors cursor-pointer"
+                                >
+                                  <Plus className="h-3 w-3" />
+                                </button>
+                              </div>
+                            </div>
+
+                            {/* Item total and delete */}
+                            <div className="flex flex-col items-end justify-between self-stretch flex-shrink-0">
+                              <button
+                                onClick={() => handleRemoveFromCart(item.id)}
+                                className="p-1.5 text-slate-400 hover:text-rose-500 rounded hover:bg-rose-50 dark:hover:bg-rose-950/20 transition-all cursor-pointer"
+                                title="إزالة من السلة"
+                              >
+                                <Trash2 className="h-4 w-4" />
+                              </button>
+                              <span className="text-xs font-extrabold text-emerald-800 dark:text-emerald-400 font-mono">
+                                {(item.prix * item.quantity).toFixed(3)} د.ت
+                              </span>
+                            </div>
+                          </div>
+                        );
+                      })}
+                    </div>
+                  )}
+                </div>
+
+                {/* Drawer Footer summary and checkout */}
+                {cart.length > 0 && (
+                  <div className={`p-5 border-t border-slate-200/60 dark:border-slate-800/60 ${themeBgCard} space-y-4`}>
+                    <div className="space-y-1.5 text-xs font-bold text-slate-600 dark:text-slate-400">
+                      <div className="flex justify-between">
+                        <span>المجموع الفرعي للمنتجات :</span>
+                        <span className="text-slate-800 dark:text-slate-200 font-mono">
+                          {cart.reduce((sum, item) => sum + item.prix * item.quantity, 0).toFixed(3)} د.ت
+                        </span>
+                      </div>
+                      
+                      <div className="flex justify-between">
+                        <span>تكلفة التوصيل في تونس :</span>
+                        <span className="font-mono">
+                          {cart.reduce((sum, item) => sum + item.prix * item.quantity, 0) >= 60 ? (
+                            <span className="text-emerald-600 font-bold">مجاني 🚚</span>
+                          ) : (
+                            <span className="text-slate-800 dark:text-slate-200">7.000 د.ت</span>
+                          )}
+                        </span>
+                      </div>
+
+                      {cart.reduce((sum, item) => sum + item.prix * item.quantity, 0) < 60 && (
+                        <div className="text-[10px] text-[#C18D5D] bg-amber-500/10 p-2 rounded border border-amber-500/15 text-center leading-normal">
+                          💡 أضيفي منتجات بقيمة <b>{(60 - cart.reduce((sum, item) => sum + item.prix * item.quantity, 0)).toFixed(3)} د.ت</b> إضافية للحصول على <b>شحن مجاني تماماً!</b>
+                        </div>
+                      )}
+
+                      <div className="pt-2 border-t border-dashed border-slate-200 dark:border-slate-800 flex justify-between text-sm text-[#2C3E2E] dark:text-[#FAF9F5]">
+                        <span className="font-extrabold">المجموع الكلي للدفع :</span>
+                        <span className="font-black text-[#C18D5D] font-mono">
+                          {(
+                            cart.reduce((sum, item) => sum + item.prix * item.quantity, 0) +
+                            (cart.reduce((sum, item) => sum + item.prix * item.quantity, 0) >= 60 ? 0 : 7)
+                          ).toFixed(3)}{' '}
+                          د.ت
+                        </span>
+                      </div>
+                    </div>
+
+                    <div className="space-y-2">
+                      <button
+                        onClick={handleFinalizeOrderViaChat}
+                        className="w-full py-3 min-h-[48px] bg-[#C18D5D] hover:bg-[#b07d50] text-[#F9F7F2] text-xs font-bold rounded-md shadow-lg hover:shadow-xl transition-all cursor-pointer flex items-center justify-center gap-2 animate-pulse"
+                      >
+                        <MessageSquare className="h-4 w-4" />
+                        <span>إتمام الطلب عبر الدردشة مع سارة 🌸</span>
+                      </button>
+                      
+                      <p className="text-[9px] text-center text-slate-400 font-semibold leading-normal">
+                        🔒 الدفع نقداً عند الاستلام بعد فحص طردكِ بكل سرية وراحة بال.
+                      </p>
+                    </div>
                   </div>
-                </form>
-              </div>
-            </motion.div>
+                )}
+              </motion.div>
+            </div>
           </div>
         )}
       </AnimatePresence>
 
-      {/* Floating Chatbot Bubble */}
+      {/* Floating Action AI Advisor Chatbot Bubble */}
       <Chatbot isNightMode={isNightMode} />
+
+      {/* Main Footer Block */}
+      <footer className={`border-t ${themeBorder} ${themeBgCard} py-12 transition-colors duration-500 mt-28`}>
+        <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 text-center space-y-6">
+          <div className="flex items-center justify-center gap-2.5">
+            <div className="h-8 w-8 rounded-full bg-[#2C3E2E] flex items-center justify-center text-[#C18D5D]">
+              <Leaf className="h-4.5 w-4.5" />
+            </div>
+            <span className="font-display font-extrabold text-base text-[#C18D5D]">بيور غلو MH — المهدية</span>
+          </div>
+          
+          <p className="text-xs text-slate-500 max-w-lg mx-auto leading-relaxed">
+            مستحضرات تجميل وصابون طبيعي مصنوع على البارد وعسل مهدى من خيرات تونس العائلية. نلتزم بنقاء المكونات الطبيعية وحفظ جودة الحرف التونسية التقليدية. شحن وتوصيل لكافة ولايات تونس والدفع عند الاستلام.
+          </p>
+
+          <div className="flex justify-center gap-8 text-[11px] text-slate-400 font-bold uppercase">
+            <span className="flex items-center gap-1.5"><Truck className="h-3.5 w-3.5 text-[#C18D5D]" /> توصيل لجميع الولايات (7 د.ت أو مجاني)</span>
+            <span className="flex items-center gap-1.5"><ShoppingBag className="h-3.5 w-3.5 text-[#C18D5D]" /> الدفع نقداً عند الاستلام</span>
+            <span className="flex items-center gap-1.5"><ShieldCheck className="h-3.5 w-3.5 text-[#C18D5D]" /> مكونات طبيعية 100%</span>
+          </div>
+
+          <div className="pt-6 border-t border-slate-200/40 dark:border-slate-800/40 text-[10px] text-slate-400">
+            <span>جميع الحقوق محفوظة © {new Date().getFullYear()} بيور غلو MH. فخر الصناعة التقليدية التونسية 🇹🇳</span>
+          </div>
+        </div>
+      </footer>
+
     </div>
   );
 }
